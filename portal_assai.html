@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal Assaí Maracanã · iFood</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090f;--s1:#0e1118;--s2:#141822;--s3:#1a2030;
+  --border:#1f2738;--border2:#2a3448;
+  --lime:#b8ff57;--lime-dim:rgba(184,255,87,.10);--lime-glo:rgba(184,255,87,.22);
+  --cyan:#38f0d4;--orange:#ff7043;--red:#ef4444;
+  --yellow:#ffc947;--blue:#5b9cf6;--purple:#a78bfa;
+  --txt:#dde3f0;--muted:#5a6480;--muted2:#8892aa;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--txt);font-family:'Outfit',sans-serif;font-size:13px;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 24px;background:var(--s1);border-bottom:1px solid var(--border);
+  flex-shrink:0;z-index:300;
+}
+.tb-left{display:flex;align-items:center;gap:14px}
+.tb-logo{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,var(--cyan),var(--lime));
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0
+}
+.tb-title{font-weight:800;font-size:15px;letter-spacing:-.01em}
+.tb-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.tb-right{display:flex;align-items:center;gap:10px}
+.live-pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--lime-dim);border:1px solid rgba(184,255,87,.2);
+  color:var(--lime);font-size:11px;padding:4px 12px;border-radius:7px
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--lime);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
+
+/* ── ADMIN BADGE ── */
+.admin-badge{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);
+  color:var(--purple);font-size:11px;padding:4px 12px;border-radius:7px;cursor:pointer;
+  transition:all .2s;
+}
+.admin-badge:hover{background:rgba(167,139,250,.2)}
+.admin-badge.active{background:rgba(184,255,87,.12);border-color:rgba(184,255,87,.3);color:var(--lime)}
+.logout-btn{
+  background:var(--s2);border:1px solid var(--border2);color:var(--muted2);
+  font-size:11px;padding:4px 12px;border-radius:7px;cursor:pointer;
+  font-family:'Outfit',sans-serif;transition:all .2s;display:none
+}
+.logout-btn:hover{border-color:var(--red);color:var(--red)}
+.logout-btn.show{display:block}
+
+/* ── NAV TABS ── */
+.nav-tabs{
+  display:flex;gap:0;border-bottom:1px solid var(--border);
+  background:var(--s1);padding:0 24px;flex-shrink:0;
+}
+.nav-tab{
+  padding:11px 20px;font-size:13px;font-weight:600;color:var(--muted);
+  cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap
+}
+.nav-tab:hover{color:var(--txt)}
+.nav-tab.on{color:var(--lime);border-bottom-color:var(--lime)}
+
+/* ── CONTENT AREA ── */
+.content{flex:1;overflow:hidden;position:relative}
+.panel{display:none;width:100%;height:100%;position:absolute;top:0;left:0}
+.panel.on{display:flex;flex-direction:column}
+iframe.dash{width:100%;flex:1;border:none;background:var(--bg)}
+
+/* ── HOME PANEL ── */
+.home-panel{
+  display:none;width:100%;height:100%;position:absolute;top:0;left:0;
+  overflow-y:auto;padding:32px 24px;flex-direction:column;gap:24px;
+  background:var(--bg)
+}
+.home-panel.on{display:flex}
+.home-hero{
+  background:var(--s1);border:1px solid var(--border);border-radius:18px;
+  padding:32px;display:flex;align-items:center;gap:28px
+}
+.hero-icon{
+  width:72px;height:72px;border-radius:18px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--cyan),var(--lime));
+  display:flex;align-items:center;justify-content:center;font-size:36px
+}
+.hero-text h1{font-size:26px;font-weight:900;letter-spacing:-.02em;margin-bottom:6px}
+.hero-text p{color:var(--muted2);font-size:14px;line-height:1.6;max-width:500px}
+.dash-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dash-card{
+  background:var(--s1);border:1px solid var(--border);border-radius:14px;
+  padding:24px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden
+}
+.dash-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--dc,var(--lime))
+}
+.dash-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.dash-card-icon{font-size:32px;margin-bottom:14px}
+.dash-card-title{font-size:17px;font-weight:800;margin-bottom:6px}
+.dash-card-desc{font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:16px}
+.dash-card-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:color-mix(in srgb,var(--dc,var(--lime)) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--dc,var(--lime)) 30%,transparent);
+  color:var(--dc,var(--lime));font-size:11px;padding:5px 12px;border-radius:7px;
+  font-weight:600;
+}
+.info-strip{
+  background:var(--s1);border:1px solid var(--border);border-radius:14px;
+  padding:20px 24px;display:flex;align-items:center;gap:16px;
+}
+.info-icon{font-size:24px;flex-shrink:0}
+.info-text{font-size:13px;color:var(--muted2);line-height:1.6}
+.info-text strong{color:var(--txt)}
+
+/* ── ADMIN PANEL ── */
+.admin-panel{
+  display:none;width:100%;height:100%;position:absolute;top:0;left:0;
+  overflow-y:auto;padding:32px 24px;flex-direction:column;gap:20px;
+  background:var(--bg)
+}
+.admin-panel.on{display:flex}
+.adm-sec{
+  background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px
+}
+.adm-sec-title{
+  font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+  margin-bottom:18px;display:flex;align-items:center;gap:10px
+}
+.adm-sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.adm-info-box{
+  background:rgba(184,255,87,.05);border:1px solid rgba(184,255,87,.15);
+  border-radius:10px;padding:14px 18px;font-size:12px;color:var(--muted2);
+  line-height:1.7;margin-bottom:18px
+}
+.adm-info-box strong{color:var(--lime)}
+.adm-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.file-upload-zone{
+  background:var(--s2);border:2px dashed var(--border2);border-radius:12px;
+  padding:24px;text-align:center;cursor:pointer;transition:all .2s;position:relative
+}
+.file-upload-zone:hover,.file-upload-zone.drag{border-color:var(--cyan);background:rgba(56,240,212,.05)}
+.file-upload-zone.loaded{border-color:var(--lime);border-style:solid;background:var(--lime-dim)}
+.file-upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.fuz-icon{font-size:28px;margin-bottom:8px}
+.fuz-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.fuz-sub{font-size:11px;color:var(--muted)}
+.fuz-name{font-size:12px;color:var(--lime);font-family:'JetBrains Mono',monospace;margin-top:6px;display:none}
+.file-upload-zone.loaded .fuz-name{display:block}
+.save-btn{
+  background:linear-gradient(135deg,var(--cyan),var(--lime));color:#07090f;
+  font-weight:800;font-size:13px;border:none;border-radius:10px;padding:12px 28px;
+  cursor:pointer;font-family:'Outfit',sans-serif;transition:all .2s;
+  display:flex;align-items:center;gap:8px
+}
+.save-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px var(--lime-glo)}
+.save-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.save-status{
+  font-size:12px;padding:4px 12px;border-radius:7px;display:none;
+  font-family:'JetBrains Mono',monospace
+}
+.save-status.ok{background:rgba(184,255,87,.1);color:var(--lime);display:inline-block}
+.save-status.err{background:rgba(239,68,68,.1);color:var(--red);display:inline-block}
+.save-status.loading{background:rgba(56,240,212,.1);color:var(--cyan);display:inline-block}
+.adm-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.data-log{
+  background:var(--s2);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;max-height:180px;overflow-y:auto;
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted2);
+  line-height:1.8
+}
+.log-entry{display:flex;gap:10px;border-bottom:1px solid rgba(255,255,255,.03);padding:2px 0}
+.log-entry:last-child{border-bottom:none}
+.log-time{color:var(--muted);flex-shrink:0}
+.log-msg{color:var(--txt)}
+.log-msg.ok{color:var(--lime)}
+.log-msg.err{color:var(--red)}
+
+/* ── LOGIN MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;
+  display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px)
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--s1);border:1px solid var(--border2);border-radius:18px;
+  padding:32px;width:100%;max-width:400px;position:relative
+}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:4px}
+.modal-sub{font-size:12px;color:var(--muted2);margin-bottom:24px}
+.modal-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.modal-label{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.modal-input{
+  background:var(--s2);border:1px solid var(--border2);border-radius:9px;
+  padding:10px 14px;color:var(--txt);font-size:14px;font-family:'Outfit',sans-serif;
+  outline:none;transition:border-color .2s
+}
+.modal-input:focus{border-color:var(--cyan)}
+.modal-input::placeholder{color:var(--muted)}
+.modal-err{font-size:12px;color:var(--red);display:none;margin-bottom:12px}
+.modal-err.show{display:block}
+.modal-btns{display:flex;gap:10px}
+.modal-btn-primary{
+  background:linear-gradient(135deg,var(--cyan),var(--lime));color:#07090f;
+  font-weight:800;font-size:13px;border:none;border-radius:9px;padding:11px 24px;
+  cursor:pointer;font-family:'Outfit',sans-serif;flex:1;transition:all .2s
+}
+.modal-btn-primary:hover{transform:translateY(-1px)}
+.modal-btn-cancel{
+  background:var(--s2);border:1px solid var(--border2);color:var(--muted2);
+  font-size:13px;padding:11px 20px;border-radius:9px;cursor:pointer;
+  font-family:'Outfit',sans-serif;transition:all .2s
+}
+.modal-btn-cancel:hover{border-color:var(--muted2);color:var(--txt)}
+.lock-icon{font-size:40px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">📦</div>
+    <div>
+      <div class="tb-title">Portal Assaí Maracanã</div>
+      <div class="tb-sub">Central de Indicadores · iFood</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="live-pill">
+      <span class="live-dot"></span>
+      <span>Online</span>
+    </div>
+    <div class="admin-badge" id="adminBadge" onclick="toggleAdmin()">
+      🔐 Área ADM
+    </div>
+    <button class="logout-btn" id="logoutBtn" onclick="doLogout()">Sair</button>
+  </div>
+</div>
+
+<!-- NAV TABS -->
+<div class="nav-tabs">
+  <div class="nav-tab on" id="tab-home" onclick="switchTab('home')">🏠 Início</div>
+  <div class="nav-tab" id="tab-prod" onclick="switchTab('prod')">📊 Produtividade</div>
+  <div class="nav-tab" id="tab-cancel" onclick="switchTab('cancel')">❌ Cancelamentos</div>
+  <div class="nav-tab" id="tab-admin" onclick="adminTabClick()" style="display:none">⚙️ Administrador</div>
+</div>
+
+<!-- CONTEÚDO -->
+<div class="content">
+
+  <!-- HOME -->
+  <div class="home-panel on" id="panel-home">
+    <div class="home-hero">
+      <div class="hero-icon">📦</div>
+      <div class="hero-text">
+        <h1>Portal Assaí Maracanã</h1>
+        <p>Central de indicadores operacionais de separação e cancelamentos. Acompanhe o desempenho da equipe, métricas de produtividade e análise de cancelamentos em tempo real.</p>
+      </div>
+    </div>
+    <div class="dash-cards">
+      <div class="dash-card" style="--dc:var(--lime)" onclick="switchTab('prod')">
+        <div class="dash-card-icon">📊</div>
+        <div class="dash-card-title">Dashboard de Produtividade</div>
+        <div class="dash-card-desc">Acompanhe pedidos separados, tempo médio de separação, performance individual dos operadores e análise comparativa.</div>
+        <div class="dash-card-btn">↗ Abrir dashboard</div>
+      </div>
+      <div class="dash-card" style="--dc:var(--orange)" onclick="switchTab('cancel')">
+        <div class="dash-card-icon">❌</div>
+        <div class="dash-card-title">Dashboard de Cancelamentos</div>
+        <div class="dash-card-desc">Analise itens cancelados por operador, produtos mais impactados, tendências por período e cruzamento de dados.</div>
+        <div class="dash-card-btn" style="--dc:var(--orange)">↗ Abrir dashboard</div>
+      </div>
+    </div>
+    <div class="info-strip" id="accessInfo">
+      <div class="info-icon">👁️</div>
+      <div class="info-text">
+        Você está em <strong>modo leitura</strong>. Qualquer pessoa pode visualizar os dashboards. Para inserir ou atualizar dados, é necessário fazer login como administrador.
+        <a href="#" onclick="toggleAdmin();return false" style="color:var(--purple);margin-left:4px">Entrar como ADM →</a>
+      </div>
+    </div>
+    <div class="info-strip" id="accessInfoAdmin" style="display:none">
+      <div class="info-icon">✅</div>
+      <div class="info-text">
+        Você está logado como <strong>Administrador</strong>. Acesse a aba <strong>⚙️ Administrador</strong> para atualizar os dados dos dashboards.
+      </div>
+    </div>
+  </div>
+
+  <!-- PRODUTIVIDADE -->
+  <div class="panel" id="panel-prod">
+    <iframe class="dash" id="iframeProd" src="about:blank" title="Dashboard de Produtividade"></iframe>
+  </div>
+
+  <!-- CANCELAMENTOS -->
+  <div class="panel" id="panel-cancel">
+    <iframe class="dash" id="iframeCancel" src="about:blank" title="Dashboard de Cancelamentos"></iframe>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="admin-panel" id="panel-admin">
+    <div class="adm-sec">
+      <div class="adm-sec-title">Painel Administrativo</div>
+      <div class="adm-info-box">
+        <strong>Como funciona:</strong> Faça upload das planilhas XLSX para atualizar os dashboards. O Dashboard de Produtividade usa <strong>um arquivo XLSX</strong>; o de Cancelamentos usa <strong>dois arquivos</strong> (Produção + Rupturas). Após salvar, os dados ficam disponíveis para todos os usuários.
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-title">📊 Atualizar — Produtividade</div>
+      <p style="font-size:12px;color:var(--muted2);margin-bottom:16px">Envie a planilha XLSX de separações para atualizar o Dashboard de Produtividade.</p>
+      <div class="adm-grid" style="margin-bottom:16px">
+        <div class="file-upload-zone" id="zoneProd" ondragover="handleDrag(event,'zoneProd')" ondragleave="handleDragLeave('zoneProd')" ondrop="handleDrop(event,'fileProd','zoneProd')">
+          <div class="fuz-icon">📂</div>
+          <div class="fuz-title">Planilha de Separações</div>
+          <div class="fuz-sub">Clique ou arraste o arquivo XLSX</div>
+          <div class="fuz-name" id="nameProd">—</div>
+          <input type="file" accept=".xlsx,.xls,.csv" id="fileProd" onchange="selectFile('fileProd','zoneProd','nameProd','btnSaveProd')">
+        </div>
+      </div>
+      <div class="adm-row">
+        <button class="save-btn" id="btnSaveProd" disabled onclick="saveFile('prod')">
+          💾 Salvar dados de Produtividade
+        </button>
+        <span class="save-status" id="statusProd"></span>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-title">❌ Atualizar — Cancelamentos</div>
+      <p style="font-size:12px;color:var(--muted2);margin-bottom:16px">Envie os dois arquivos XLSX para cruzamento: planilha de Produção e planilha de Rupturas.</p>
+      <div class="adm-grid" style="margin-bottom:16px">
+        <div class="file-upload-zone" id="zoneCancel1" ondragover="handleDrag(event,'zoneCancel1')" ondragleave="handleDragLeave('zoneCancel1')" ondrop="handleDrop(event,'fileCancel1','zoneCancel1')">
+          <div class="fuz-icon">📄</div>
+          <div class="fuz-title">Arquivo de Produção</div>
+          <div class="fuz-sub">Planilha com pedidos e separadores</div>
+          <div class="fuz-name" id="nameCancel1">—</div>
+          <input type="file" accept=".xlsx,.xls,.csv" id="fileCancel1" onchange="selectFile('fileCancel1','zoneCancel1','nameCancel1','btnSaveCancel')">
+        </div>
+        <div class="file-upload-zone" id="zoneCancel2" ondragover="handleDrag(event,'zoneCancel2')" ondragleave="handleDragLeave('zoneCancel2')" ondrop="handleDrop(event,'fileCancel2','zoneCancel2')">
+          <div class="fuz-icon">📄</div>
+          <div class="fuz-title">Arquivo de Rupturas</div>
+          <div class="fuz-sub">Planilha com itens indisponíveis</div>
+          <div class="fuz-name" id="nameCancel2">—</div>
+          <input type="file" accept=".xlsx,.xls,.csv" id="fileCancel2" onchange="selectFile('fileCancel2','zoneCancel2','nameCancel2','btnSaveCancel')">
+        </div>
+      </div>
+      <div class="adm-row">
+        <button class="save-btn" id="btnSaveCancel" disabled onclick="saveFile('cancel')">
+          💾 Salvar dados de Cancelamentos
+        </button>
+        <span class="save-status" id="statusCancel"></span>
+      </div>
+    </div>
+
+    <div class="adm-sec">
+      <div class="adm-sec-title">📋 Log de Atualizações</div>
+      <div class="data-log" id="dataLog">
+        <div class="log-entry"><span class="log-time">--:--:--</span><span class="log-msg">Aguardando atualizações...</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal">
+    <div class="lock-icon">🔐</div>
+    <div class="modal-title">Área do Administrador</div>
+    <div class="modal-sub">Digite a senha para acessar o painel de administração e atualizar os dados.</div>
+    <div class="modal-field">
+      <label class="modal-label">Senha de Acesso</label>
+      <input class="modal-input" type="password" id="adminPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="modal-err" id="loginErr">Senha incorreta. Tente novamente.</div>
+    <div class="modal-btns">
+      <button class="modal-btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="modal-btn-primary" onclick="doLogin()">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let isAdmin = false;
+let currentTab = 'home';
+let prodLoaded = false;
+let cancelLoaded = false;
+
+// File refs
+let files = { fileProd: null, fileCancel1: null, fileCancel2: null };
+
+// ══════════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel,.home-panel,.admin-panel').forEach(p => p.classList.remove('on'));
+
+  const tabEl = document.getElementById('tab-' + tab);
+  if (tabEl) tabEl.classList.add('on');
+
+  if (tab === 'home') {
+    document.getElementById('panel-home').classList.add('on');
+  } else if (tab === 'prod') {
+    document.getElementById('panel-prod').classList.add('on');
+    if (!prodLoaded) loadProdDash();
+  } else if (tab === 'cancel') {
+    document.getElementById('panel-cancel').classList.add('on');
+    if (!cancelLoaded) loadCancelDash();
+  } else if (tab === 'admin') {
+    document.getElementById('panel-admin').classList.add('on');
+  }
+  currentTab = tab;
+}
+
+function adminTabClick() {
+  if (!isAdmin) { showLoginModal(); return; }
+  switchTab('admin');
+}
+
+// ══════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════
+const PASS = 'Sza@1602';
+
+function toggleAdmin() {
+  if (isAdmin) { doLogout(); return; }
+  showLoginModal();
+}
+
+function showLoginModal() {
+  document.getElementById('loginModal').classList.add('open');
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('loginErr').classList.remove('show');
+  setTimeout(() => document.getElementById('adminPassword').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('loginModal').classList.remove('open');
+}
+
+function doLogin() {
+  const pw = document.getElementById('adminPassword').value;
+  if (pw === PASS) {
+    isAdmin = true;
+    closeModal();
+    setAdminUI(true);
+    addLog('✅ Login realizado com sucesso', 'ok');
+  } else {
+    document.getElementById('loginErr').classList.add('show');
+    document.getElementById('adminPassword').value = '';
+    document.getElementById('adminPassword').focus();
+  }
+}
+
+function doLogout() {
+  isAdmin = false;
+  setAdminUI(false);
+  if (currentTab === 'admin') switchTab('home');
+}
+
+function setAdminUI(active) {
+  const badge = document.getElementById('adminBadge');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const adminTab = document.getElementById('tab-admin');
+  const accessInfo = document.getElementById('accessInfo');
+  const accessInfoAdmin = document.getElementById('accessInfoAdmin');
+
+  if (active) {
+    badge.classList.add('active');
+    badge.textContent = '✅ ADM Ativo';
+    logoutBtn.classList.add('show');
+    adminTab.style.display = 'block';
+    accessInfo.style.display = 'none';
+    accessInfoAdmin.style.display = 'flex';
+  } else {
+    badge.classList.remove('active');
+    badge.textContent = '🔐 Área ADM';
+    logoutBtn.classList.remove('show');
+    adminTab.style.display = 'none';
+    accessInfo.style.display = 'flex';
+    accessInfoAdmin.style.display = 'none';
+  }
+}
+
+// Close modal on overlay click
+document.getElementById('loginModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD LOADING (with stored data injection)
+// ══════════════════════════════════════════════════════
+const PROD_SRC = 'PRODUTIVIDADE.html';
+const CANCEL_SRC = 'INDICADORES_cancelamentos.html';
+
+function loadProdDash() {
+  const iframe = document.getElementById('iframeProd');
+  iframe.src = PROD_SRC;
+  prodLoaded = true;
+}
+
+function loadCancelDash() {
+  const iframe = document.getElementById('iframeCancel');
+  iframe.src = CANCEL_SRC;
+  cancelLoaded = true;
+}
+
+// ══════════════════════════════════════════════════════
+// FILE HANDLING
+// ══════════════════════════════════════════════════════
+function selectFile(inputId, zoneId, nameId, btnId) {
+  const input = document.getElementById(inputId);
+  const zone = document.getElementById(zoneId);
+  const nameEl = document.getElementById(nameId);
+  if (input.files.length) {
+    files[inputId] = input.files[0];
+    zone.classList.add('loaded');
+    nameEl.textContent = '✔ ' + input.files[0].name;
+    checkBtnReady(btnId);
+  }
+}
+
+function checkBtnReady(btnId) {
+  if (btnId === 'btnSaveProd') {
+    document.getElementById('btnSaveProd').disabled = !files.fileProd;
+  } else if (btnId === 'btnSaveCancel') {
+    document.getElementById('btnSaveCancel').disabled = !(files.fileCancel1 && files.fileCancel2);
+  }
+}
+
+function handleDrag(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('drag');
+}
+
+function handleDragLeave(zoneId) {
+  document.getElementById(zoneId).classList.remove('drag');
+}
+
+function handleDrop(e, inputId, zoneId) {
+  e.preventDefault();
+  handleDragLeave(zoneId);
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  files[inputId] = file;
+  const zone = document.getElementById(zoneId);
+  zone.classList.add('loaded');
+  const nameMap = { fileProd: 'nameProd', fileCancel1: 'nameCancel1', fileCancel2: 'nameCancel2' };
+  const btnMap  = { fileProd: 'btnSaveProd', fileCancel1: 'btnSaveCancel', fileCancel2: 'btnSaveCancel' };
+  document.getElementById(nameMap[inputId]).textContent = '✔ ' + file.name;
+  checkBtnReady(btnMap[inputId]);
+}
+
+// ══════════════════════════════════════════════════════
+// SAVE / STORAGE
+// ══════════════════════════════════════════════════════
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'save-status ' + type;
+}
+
+async function saveFile(type) {
+  if (!isAdmin) { showLoginModal(); return; }
+
+  if (type === 'prod') {
+    if (!files.fileProd) return;
+    const btn = document.getElementById('btnSaveProd');
+    btn.disabled = true;
+    setStatus('statusProd', '⏳ Salvando...', 'loading');
+    try {
+      const b64 = await toBase64(files.fileProd);
+      await window.storage.set('prod-file', JSON.stringify({
+        name: files.fileProd.name,
+        data: b64,
+        updated: new Date().toLocaleString('pt-BR')
+      }));
+      setStatus('statusProd', '✅ Salvo com sucesso!', 'ok');
+      addLog('✅ Produtividade atualizada: ' + files.fileProd.name, 'ok');
+      // Reload iframe if open
+      if (prodLoaded) {
+        document.getElementById('iframeProd').src = PROD_SRC;
+      }
+    } catch(err) {
+      setStatus('statusProd', '❌ Erro: ' + err.message, 'err');
+      addLog('❌ Erro ao salvar Produtividade: ' + err.message, 'err');
+    }
+    btn.disabled = false;
+  }
+
+  if (type === 'cancel') {
+    if (!files.fileCancel1 || !files.fileCancel2) return;
+    const btn = document.getElementById('btnSaveCancel');
+    btn.disabled = true;
+    setStatus('statusCancel', '⏳ Salvando...', 'loading');
+    try {
+      const [b64_1, b64_2] = await Promise.all([toBase64(files.fileCancel1), toBase64(files.fileCancel2)]);
+      await window.storage.set('cancel-file1', JSON.stringify({
+        name: files.fileCancel1.name,
+        data: b64_1,
+        updated: new Date().toLocaleString('pt-BR')
+      }));
+      await window.storage.set('cancel-file2', JSON.stringify({
+        name: files.fileCancel2.name,
+        data: b64_2,
+        updated: new Date().toLocaleString('pt-BR')
+      }));
+      setStatus('statusCancel', '✅ Salvo com sucesso!', 'ok');
+      addLog('✅ Cancelamentos atualizados: ' + files.fileCancel1.name + ' + ' + files.fileCancel2.name, 'ok');
+      if (cancelLoaded) {
+        document.getElementById('iframeCancel').src = CANCEL_SRC;
+      }
+    } catch(err) {
+      setStatus('statusCancel', '❌ Erro: ' + err.message, 'err');
+      addLog('❌ Erro ao salvar Cancelamentos: ' + err.message, 'err');
+    }
+    btn.disabled = false;
+  }
+}
+
+function toBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = e => res(e.target.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// LOG
+// ══════════════════════════════════════════════════════
+function addLog(msg, type) {
+  const log = document.getElementById('dataLog');
+  const now = new Date().toLocaleTimeString('pt-BR');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${now}</span><span class="log-msg ${type||''}">${msg}</span>`;
+  if (log.children.length === 1 && log.children[0].querySelector('.log-time').textContent === '--:--:--') {
+    log.innerHTML = '';
+  }
+  log.prepend(entry);
+}
+
+// Load log from storage on init
+async function loadLog() {
+  try {
+    const prodR = await window.storage.get('prod-file');
+    const c1R = await window.storage.get('cancel-file1');
+    const c2R = await window.storage.get('cancel-file2');
+    if (prodR) {
+      const d = JSON.parse(prodR.value);
+      addLog('ℹ️ Produtividade: ' + d.name + ' (atualizado em ' + d.updated + ')', 'ok');
+    }
+    if (c1R && c2R) {
+      const d1 = JSON.parse(c1R.value);
+      const d2 = JSON.parse(c2R.value);
+      addLog('ℹ️ Cancelamentos: ' + d1.name + ' + ' + d2.name + ' (atualizado em ' + d1.updated + ')', 'ok');
+    }
+  } catch(e) { /* no prior saves */ }
+}
+
+// Init
+loadLog();
+</script>
+</body>
+</html>
