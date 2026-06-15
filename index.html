@@ -3009,7 +3009,7 @@ function rebuildFromDetail(){
   // Update period badge in header
   const dates=filtered.map(r=>r.date).filter(Boolean).sort();
   if(dates.length)document.getElementById('periodoBadge').textContent='Período: '+dates[0]+' a '+dates[dates.length-1];
-  selectedOps=null;buildChips();applyFilter();
+  selectedOps=null;buildChips();renderAll();
 }
 
 function buildChips(){
@@ -3443,7 +3443,7 @@ async function processFiles(skipAuthCheck){
     BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
     try{const dates=pRows.map(r=>norm(r)['data (referente ao pedido)']).filter(Boolean);if(dates.length){const s=[...new Set(dates)].sort();const d0=parseDate(s[0]),d1=parseDate(s[s.length-1]);document.getElementById('periodoBadge').textContent='Período: '+(d0||s[0].toString().slice(0,10))+' a '+(d1||s[s.length-1].toString().slice(0,10));if(d0)document.getElementById('dateFrom').value=d0;if(d1)document.getElementById('dateTo').value=d1;DATE_FROM=d0;DATE_TO=d1;updateDateBadge();}}catch(e){}
     document.getElementById('footerSrc').textContent='Fonte: '+prodFile.name+' × '+ruptFile.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
-    selectedOps=null;buildChips();applyFilter();
+    selectedOps=null;buildChips();renderAll();
     showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
   btn.disabled=false;
