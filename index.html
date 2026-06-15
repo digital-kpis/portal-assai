@@ -3379,21 +3379,25 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 // FILE UPLOAD
 function readXlsx(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}));}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
 function norm(obj){const o={};for(const k in obj)o[k.trim().toLowerCase()]=obj[k];return o;}
-let prodFile=null,ruptFile=null;
+var prodFile=null,ruptFile=null;
 // NOTE: file listeners are managed by the portal admin gate (see portal script below)
 // These stubs exist so chkReady() is available for the cancel dashboard
 function chkReady(){
-  if(typeof isAdmin!=='undefined'&&!isAdmin){prodFile=null;ruptFile=null;}
-  document.getElementById('btnUpdate').disabled=!(prodFile&&ruptFile);
+  if(typeof isAdmin!=='undefined'&&!isAdmin){prodFile=null;ruptFile=null;window.prodFile=null;window.ruptFile=null;}
+  var pf=window.prodFile||prodFile, rf=window.ruptFile||ruptFile;
+  document.getElementById('btnUpdate').disabled=!(pf&&rf);
 }
 function showSt(msg,type){const el=document.getElementById('statusMsg');el.textContent=msg;el.className='status-msg '+type;}
 
 async function processFiles(skipAuthCheck){
   if (!skipAuthCheck && !isAdmin) { showLoginModal(); return; }
+  const pf = window.prodFile || prodFile;
+  const rf = window.ruptFile || ruptFile;
+  if (!pf || !rf) { showSt('❌ Arquivos não encontrados','err'); return; }
   const btn=document.getElementById('btnUpdate');btn.disabled=true;
   showSt('⏳ Lendo arquivos...','loading');
   try{
-    const[pRows,rRows]=await Promise.all([readXlsx(prodFile),readXlsx(ruptFile)]);
+    const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
     showSt('⏳ Cruzando col C × col Q...','loading');
     const keyToSep={};
     for(const r of pRows){
@@ -3442,7 +3446,7 @@ async function processFiles(skipAuthCheck){
     Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
     BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
     try{const dates=pRows.map(r=>norm(r)['data (referente ao pedido)']).filter(Boolean);if(dates.length){const s=[...new Set(dates)].sort();const d0=parseDate(s[0]),d1=parseDate(s[s.length-1]);document.getElementById('periodoBadge').textContent='Período: '+(d0||s[0].toString().slice(0,10))+' a '+(d1||s[s.length-1].toString().slice(0,10));if(d0)document.getElementById('dateFrom').value=d0;if(d1)document.getElementById('dateTo').value=d1;DATE_FROM=d0;DATE_TO=d1;updateDateBadge();}}catch(e){}
-    document.getElementById('footerSrc').textContent='Fonte: '+prodFile.name+' × '+ruptFile.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
+    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
     selectedOps=null;buildChips();renderAll();
     showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
