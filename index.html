@@ -3111,7 +3111,8 @@ function _setCancelEmptyState(isEmpty) {
 
 function renderAll(){
   const{ops,items,totalCancel,totalPedidos,skus}=getFiltered();
-  const hasData = RAW_OPERATORS.length > 0;
+  const hasData = DETAIL_ROWS.length > 0;
+  console.log('[renderAll] DETAIL_ROWS:', DETAIL_ROWS.length, 'RAW_OPERATORS:', RAW_OPERATORS.length, 'hasData:', hasData);
   _setCancelEmptyState(!hasData);
   if (!hasData) return;
   updateKPIs(totalCancel,totalPedidos,totalPedidos,skus,ops.length);
@@ -3436,6 +3437,13 @@ async function processFiles(skipAuthCheck){
     }
     // Popula DETAIL_ROWS — única fonte de verdade para tudo
     DETAIL_ROWS.length=0;
+    var _dbgSepHits=0, _dbgSepMiss=0, _dbgDateHits=0, _dbgDateMiss=0;
+    // Debug: mostrar primeiras colunas dos arquivos
+    if(pRows.length>0) console.log('[processFiles] pRows[0] keys:', Object.keys(norm(pRows[0])));
+    if(rRows.length>0) console.log('[processFiles] rRows[0] keys:', Object.keys(norm(rRows[0])));
+    if(pRows.length>0) console.log('[processFiles] pRows[0] col C (idx2):', Object.values(pRows[0])[2]);
+    if(rRows.length>0) console.log('[processFiles] rRows[0] col Q (idx16):', Object.values(rRows[0])[16]);
+    console.log('[processFiles] keyToSep entries:', Object.keys(keyToSep).length, '| keyToDate entries:', Object.keys(keyToDate).length);
     for(const r of rRows){
       const n=norm(r);
       const sid=(n['short_id']||Object.values(r)[16]||'').toString().trim().replace(/^0+/,'')||'0';
@@ -3445,7 +3453,11 @@ async function processFiles(skipAuthCheck){
       const dateStr=keyToDate[sid]||null;
       const sep=keyToSep[sid]||'';
       if(/helppi/i.test(sep)) continue;
+      if(sep) _dbgSepHits++; else _dbgSepMiss++;
+      if(dateStr) _dbgDateHits++; else _dbgDateMiss++;
       DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
+    }
+    console.log('[processFiles] DETAIL_ROWS:', DETAIL_ROWS.length, '| sep hits:', _dbgSepHits, 'sep miss:', _dbgSepMiss, '| date hits:', _dbgDateHits, 'date miss:', _dbgDateMiss);
     }
     // Define período inicial como o range completo dos dados
     const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
