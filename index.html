@@ -2930,11 +2930,13 @@ function _drawTrendChart(labels, datasets, stacked) {
 }
 
 function applyDateFilter(){
-  DATE_FROM=document.getElementById('dateFrom').value||null;
-  DATE_TO=document.getElementById('dateTo').value||null;
+  var v1=document.getElementById('dateFrom').value||null;
+  var v2=document.getElementById('dateTo').value||null;
+  DATE_FROM=v1;
+  DATE_TO=v2;
   updateDateBadge();
   if(DETAIL_ROWS.length){rebuildFromDetail();}
-  else{selectedOps=null;buildChips();applyFilter();}
+  else{buildChips();renderAll();}
 }
 function clearDateFilter(){
   document.getElementById('dateFrom').value='';
@@ -2942,7 +2944,7 @@ function clearDateFilter(){
   DATE_FROM=null;DATE_TO=null;
   updateDateBadge();
   if(DETAIL_ROWS.length){rebuildFromDetail();}
-  else{selectedOps=null;buildChips();applyFilter();}
+  else{buildChips();renderAll();}
 }
 function updateDateBadge(){
   const b=document.getElementById('dateBadge');
@@ -2955,26 +2957,34 @@ function updateDateBadge(){
 }
 function parseDate(val){
   if(!val)return null;
-  // Try serial number (Excel date)
+  // Serial numérico do Excel (ex: 45678)
   if(typeof val==='number'){
-    const d=new Date(Math.round((val-25569)*86400*1000));
-    return d.toISOString().slice(0,10);
+    var d=new Date(Math.round((val-25569)*86400*1000));
+    var y=d.getUTCFullYear(),m=d.getUTCMonth()+1,day=d.getUTCDate();
+    return y+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day;
   }
-  const s=val.toString().trim();
-  // dd/mm/yyyy
-  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-  // yyyy-mm-dd or ISO
-  const m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  var s=val.toString().trim();
+  // dd/mm/yyyy ou dd/mm/yy
+  var m1=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m1){
+    var yr=parseInt(m1[3]);if(yr<100)yr+=2000;
+    return yr+'-'+m1[2].padStart(2,'0')+'-'+m1[1].padStart(2,'0');
+  }
+  // yyyy-mm-dd ou ISO
+  var m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(m2)return m2[1]+'-'+m2[2]+'-'+m2[3];
   return null;
 }
 function rebuildFromDetail(){
   const from=DATE_FROM||null, to=DATE_TO||null;
-  const filtered=DETAIL_ROWS.filter(r=>{
-    if(!r.date)return true;
-    if(from&&r.date<from)return false;
-    if(to&&r.date>to)return false;
+  // Filtra DETAIL_ROWS pela data selecionada
+  // Se r.date é null E há filtro ativo, exclui a linha (sem data = ignorar no filtro)
+  const filtered=DETAIL_ROWS.filter(function(r){
+    if(from||to){
+      if(!r.date) return false; // sem data: exclui quando há filtro
+      if(from && r.date < from) return false;
+      if(to   && r.date > to)   return false;
+    }
     return true;
   });
   const opMap={},itemMap={},newOpItemMap={};
@@ -2991,25 +3001,36 @@ function rebuildFromDetail(){
       newOpItemMap[r.sep][r.produto].cancel+=r.qtd;newOpItemMap[r.sep][r.produto].pedidos++;
     }
   }
-  // Mesclar operadores do XLSX com lista cadastrada — preserva todos os nomes
-  const newOpsFromXlsx = Object.entries(opMap)
-    .filter(([name])=>!/^helppi/i.test(name))
-    .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}));
-  const newOpsMap = Object.fromEntries(newOpsFromXlsx.map(o=>[o.name,o]));
-  // Atualizar/adicionar todos os que vieram do XLSX
-  const mergedMap = {};
-  RAW_OPERATORS.forEach(o=>{ mergedMap[o.name] = Object.assign({},o); });
-  newOpsFromXlsx.forEach(o=>{ mergedMap[o.name] = o; });
+  // Reconstrói RAW_OPERATORS somente com quem tem dados no período filtrado
   RAW_OPERATORS.length=0;
-  Object.values(mergedMap).sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
+  Object.entries(opMap)
+    .filter(function([name]){return !/^helppi/i.test(name);})
+    .map(function([name,v]){return{name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size};})
+    .sort(function(a,b){return b.cancel-a.cancel;})
+    .forEach(function(o){RAW_OPERATORS.push(o);});
   RAW_ITEMS_GLOBAL.length=0;
-  Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
-  Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
+  Object.entries(itemMap)
+    .map(function([produto,v]){return{produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size};})
+    .sort(function(a,b){return b.cancel-a.cancel;})
+    .slice(0,20)
+    .forEach(function(i){RAW_ITEMS_GLOBAL.push(i);});
+  Object.keys(OP_ITEM_MAP).forEach(function(k){delete OP_ITEM_MAP[k];});
+  Object.assign(OP_ITEM_MAP,newOpItemMap);
   BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
-  // Update period badge in header
-  const dates=filtered.map(r=>r.date).filter(Boolean).sort();
-  if(dates.length)document.getElementById('periodoBadge').textContent='Período: '+dates[0]+' a '+dates[dates.length-1];
-  selectedOps=null;buildChips();renderAll();
+  // Atualiza badge do período
+  var dates=filtered.map(function(r){return r.date;}).filter(Boolean).sort();
+  if(dates.length){
+    var el=document.getElementById('periodoBadge');
+    if(el) el.textContent='Período: '+dates[0]+' a '+dates[dates.length-1];
+  }
+  // Preserva selectedOps se ainda existem operadores no resultado
+  if(selectedOps){
+    var validNames=new Set(RAW_OPERATORS.map(function(o){return o.name;}));
+    var newSel=new Set([...selectedOps].filter(function(n){return validNames.has(n);}));
+    selectedOps=newSel.size>0?newSel:null;
+  }
+  buildChips();
+  renderAll();
 }
 
 function buildChips(){
