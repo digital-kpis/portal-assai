@@ -3427,7 +3427,6 @@ async function processFiles(skipAuthCheck){
       const sep=(n['separador']||'').toString().trim();
       if(numPed&&sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
     }
-    // Build a date lookup: pedido number → date string
     const keyToDate={};
     for(const r of pRows){
       const n=norm(r);
@@ -3435,8 +3434,7 @@ async function processFiles(skipAuthCheck){
       const rawDate=n['data (referente ao pedido)']||n['data']||'';
       if(numPed&&rawDate)keyToDate[numPed]=parseDate(rawDate);
     }
-    const opMap={},itemMap={},newOpItemMap={};
-    let tc=0,tr=0;const ap=new Set(),as=new Set();
+    // Popula DETAIL_ROWS — única fonte de verdade para tudo
     DETAIL_ROWS.length=0;
     for(const r of rRows){
       const n=norm(r);
@@ -3446,29 +3444,25 @@ async function processFiles(skipAuthCheck){
       if(!produto)continue;
       const dateStr=keyToDate[sid]||null;
       const sep=keyToSep[sid]||'';
-      // Ignorar operadores Helppi nos cancelamentos/rupturas
       if(/helppi/i.test(sep)) continue;
       DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
-      tr++;tc+=qtd;ap.add(sid);as.add(produto);
-      if(!itemMap[produto])itemMap[produto]={cancel:0,pedidos:new Set()};
-      itemMap[produto].cancel+=qtd;itemMap[produto].pedidos.add(sid);
-      if(sep){
-        if(!opMap[sep])opMap[sep]={cancel:0,pedidos:new Set(),itens:new Set()};
-        opMap[sep].cancel+=qtd;opMap[sep].pedidos.add(sid);opMap[sep].itens.add(produto);
-        if(!newOpItemMap[sep])newOpItemMap[sep]={};
-        if(!newOpItemMap[sep][produto])newOpItemMap[sep][produto]={cancel:0,pedidos:0};
-        newOpItemMap[sep][produto].cancel+=qtd;newOpItemMap[sep][produto].pedidos++;
-      }
     }
-    RAW_OPERATORS.length=0;
-    Object.entries(opMap).filter(([name])=>!/helppi/i.test(name)).map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,40).forEach(o=>RAW_OPERATORS.push(o));
-    RAW_ITEMS_GLOBAL.length=0;
-    Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
-    Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
-    BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
-    try{const dates=pRows.map(r=>norm(r)['data (referente ao pedido)']).filter(Boolean);if(dates.length){const s=[...new Set(dates)].sort();const d0=parseDate(s[0]),d1=parseDate(s[s.length-1]);document.getElementById('periodoBadge').textContent='Período: '+(d0||s[0].toString().slice(0,10))+' a '+(d1||s[s.length-1].toString().slice(0,10));if(d0)document.getElementById('dateFrom').value=d0;if(d1)document.getElementById('dateTo').value=d1;DATE_FROM=d0;DATE_TO=d1;updateDateBadge();}}catch(e){}
+    // Define período inicial como o range completo dos dados
+    const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
+    DATE_FROM=null; DATE_TO=null; // sem filtro de data inicial — mostra tudo
+    // Atualiza inputs e badge com o range real
+    if(allDates.length){
+      const d0=allDates[0], d1=allDates[allDates.length-1];
+      document.getElementById('dateFrom').value=d0;
+      document.getElementById('dateTo').value=d1;
+      document.getElementById('periodoBadge').textContent='Período: '+d0+' a '+d1;
+      var badge=document.getElementById('dateBadge');
+      if(badge){badge.textContent='';badge.classList.remove('active');}
+    }
     document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
-    selectedOps=null;buildChips();renderAll();
+    // rebuildFromDetail constrói RAW_OPERATORS, RAW_ITEMS_GLOBAL, OP_ITEM_MAP e chama renderAll
+    selectedOps=null;
+    rebuildFromDetail();
     showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
   btn.disabled=false;
