@@ -3112,7 +3112,6 @@ function _setCancelEmptyState(isEmpty) {
 function renderAll(){
   const{ops,items,totalCancel,totalPedidos,skus}=getFiltered();
   const hasData = DETAIL_ROWS.length > 0;
-  console.log('[renderAll] DETAIL_ROWS:', DETAIL_ROWS.length, 'RAW_OPERATORS:', RAW_OPERATORS.length, 'hasData:', hasData);
   _setCancelEmptyState(!hasData);
   if (!hasData) return;
   updateKPIs(totalCancel,totalPedidos,totalPedidos,skus,ops.length);
@@ -3420,49 +3419,84 @@ async function processFiles(skipAuthCheck){
   showSt('⏳ Lendo arquivos...','loading');
   try{
     const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
-    showSt('⏳ Cruzando col C × col Q...','loading');
-    const keyToSep={};
+    showSt('⏳ Cruzando pedidos...','loading');
+
+    // ── Detecta colunas dinamicamente no arquivo PRODU ──
+    // Procura em todas as chaves normalizadas
+    function findKey(n, candidates){
+      for(const c of candidates){ if(n[c]!==undefined && n[c]!=='') return n[c]; }
+      return '';
+    }
+
+    // Monta mapa: número_pedido → {sep, date}
+    const pedidoMap={};
     for(const r of pRows){
       const n=norm(r);
-      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
-      const sep=(n['separador']||'').toString().trim();
-      if(numPed&&sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
+      // Número do pedido — tenta vários nomes de coluna e fallback em todas as colunas com número longo
+      let numPed = findKey(n,[
+        'número do pedido','numero do pedido','num pedido','numpedido',
+        'pedido','n pedido','n. pedido','num. pedido','order','order id','orderid'
+      ]);
+      // Fallback: varre todos os valores procurando número com 6+ dígitos
+      if(!numPed){
+        for(const v of Object.values(r)){
+          const s=(v||'').toString().trim();
+          if(/^\d{6,}$/.test(s)){numPed=s;break;}
+        }
+      }
+      numPed=(numPed||'').toString().trim().replace(/^0+/,'')||'';
+      if(!numPed) continue;
+
+      const sep = findKey(n,[
+        'separador','operador','sep','picker','nome separador','nome do separador',
+        'funcionario','funcionário','colaborador','atendente'
+      ]);
+      const rawDate = findKey(n,[
+        'data (referente ao pedido)','data referente ao pedido','data do pedido',
+        'data pedido','data','date','dt pedido','dt_pedido','data_pedido'
+      ]);
+      if(!pedidoMap[numPed]) pedidoMap[numPed]={sep:'',date:null};
+      if(sep && !/^helppi/i.test(sep)) pedidoMap[numPed].sep=sep.toString().trim();
+      if(rawDate) pedidoMap[numPed].date=parseDate(rawDate);
     }
-    const keyToDate={};
-    for(const r of pRows){
-      const n=norm(r);
-      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
-      const rawDate=n['data (referente ao pedido)']||n['data']||'';
-      if(numPed&&rawDate)keyToDate[numPed]=parseDate(rawDate);
-    }
-    // Popula DETAIL_ROWS — única fonte de verdade para tudo
+
+    // ── Detecta colunas dinamicamente no arquivo RUPTURA ──
     DETAIL_ROWS.length=0;
-    var _dbgSepHits=0, _dbgSepMiss=0, _dbgDateHits=0, _dbgDateMiss=0;
-    // Debug: mostrar primeiras colunas dos arquivos
-    if(pRows.length>0) console.log('[processFiles] pRows[0] keys:', Object.keys(norm(pRows[0])));
-    if(rRows.length>0) console.log('[processFiles] rRows[0] keys:', Object.keys(norm(rRows[0])));
-    if(pRows.length>0) console.log('[processFiles] pRows[0] col C (idx2):', Object.values(pRows[0])[2]);
-    if(rRows.length>0) console.log('[processFiles] rRows[0] col Q (idx16):', Object.values(rRows[0])[16]);
-    console.log('[processFiles] keyToSep entries:', Object.keys(keyToSep).length, '| keyToDate entries:', Object.keys(keyToDate).length);
     for(const r of rRows){
       const n=norm(r);
-      const sid=(n['short_id']||Object.values(r)[16]||'').toString().trim().replace(/^0+/,'')||'0';
-      const produto=(n['produto']||'').toString().trim();
-      const qtd=parseFloat(n['qtd_indisponivel']||0)||0;
-      if(!produto)continue;
-      const dateStr=keyToDate[sid]||null;
-      const sep=keyToSep[sid]||'';
-      if(/helppi/i.test(sep)) continue;
-      if(sep) _dbgSepHits++; else _dbgSepMiss++;
-      if(dateStr) _dbgDateHits++; else _dbgDateMiss++;
-      DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
+      // short_id — chave de cruzamento com o pedido
+      let sid = findKey(n,[
+        'short_id','shortid','short id','id pedido','id_pedido',
+        'numero pedido','número pedido','num pedido','pedido','order id','orderid'
+      ]);
+      // Fallback: número com 6+ dígitos
+      if(!sid){
+        for(const v of Object.values(r)){
+          const s=(v||'').toString().trim();
+          if(/^\d{6,}$/.test(s)){sid=s;break;}
+        }
+      }
+      sid=(sid||'').toString().trim().replace(/^0+/,'')||'0';
+
+      const produto = findKey(n,[
+        'produto','descricao','descrição','description','item','nome produto',
+        'nome do produto','desc produto','product'
+      ]);
+      if(!produto) continue;
+
+      const qtd = parseFloat(findKey(n,[
+        'qtd_indisponivel','qtd indisponivel','qtd cancelada','qtd cancelado',
+        'quantidade','qtd','qty','quantity','cancelado','indisponivel'
+      ])||0)||0;
+
+      const match = pedidoMap[sid]||{sep:'',date:null};
+      if(/^helppi/i.test(match.sep)) continue;
+      DETAIL_ROWS.push({date:match.date, sep:match.sep, produto:produto.toString().trim(), qtd, sid});
     }
-    console.log('[processFiles] DETAIL_ROWS:', DETAIL_ROWS.length, '| sep hits:', _dbgSepHits, 'sep miss:', _dbgSepMiss, '| date hits:', _dbgDateHits, 'date miss:', _dbgDateMiss);
-    }
-    // Define período inicial como o range completo dos dados
+
+    // ── Período dos dados ──
     const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
-    DATE_FROM=null; DATE_TO=null; // sem filtro de data inicial — mostra tudo
-    // Atualiza inputs e badge com o range real
+    DATE_FROM=null; DATE_TO=null;
     if(allDates.length){
       const d0=allDates[0], d1=allDates[allDates.length-1];
       document.getElementById('dateFrom').value=d0;
@@ -3471,11 +3505,11 @@ async function processFiles(skipAuthCheck){
       var badge=document.getElementById('dateBadge');
       if(badge){badge.textContent='';badge.classList.remove('active');}
     }
-    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
-    // rebuildFromDetail constrói RAW_OPERATORS, RAW_ITEMS_GLOBAL, OP_ITEM_MAP e chama renderAll
+    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · '+new Date().toLocaleString('pt-BR');
     selectedOps=null;
     rebuildFromDetail();
-    showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
+    const nOps=RAW_OPERATORS.length, nItens=RAW_ITEMS_GLOBAL.length;
+    showSt('✅ '+DETAIL_ROWS.length+' registros · '+nOps+' operadores · '+nItens+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
   btn.disabled=false;
 }
