@@ -2930,13 +2930,11 @@ function _drawTrendChart(labels, datasets, stacked) {
 }
 
 function applyDateFilter(){
-  var v1=document.getElementById('dateFrom').value||null;
-  var v2=document.getElementById('dateTo').value||null;
-  DATE_FROM=v1;
-  DATE_TO=v2;
+  DATE_FROM=document.getElementById('dateFrom').value||null;
+  DATE_TO=document.getElementById('dateTo').value||null;
   updateDateBadge();
   if(DETAIL_ROWS.length){rebuildFromDetail();}
-  else{buildChips();renderAll();}
+  else{selectedOps=null;buildChips();applyFilter();}
 }
 function clearDateFilter(){
   document.getElementById('dateFrom').value='';
@@ -2944,7 +2942,7 @@ function clearDateFilter(){
   DATE_FROM=null;DATE_TO=null;
   updateDateBadge();
   if(DETAIL_ROWS.length){rebuildFromDetail();}
-  else{buildChips();renderAll();}
+  else{selectedOps=null;buildChips();applyFilter();}
 }
 function updateDateBadge(){
   const b=document.getElementById('dateBadge');
@@ -2957,34 +2955,26 @@ function updateDateBadge(){
 }
 function parseDate(val){
   if(!val)return null;
-  // Serial numérico do Excel (ex: 45678)
+  // Try serial number (Excel date)
   if(typeof val==='number'){
-    var d=new Date(Math.round((val-25569)*86400*1000));
-    var y=d.getUTCFullYear(),m=d.getUTCMonth()+1,day=d.getUTCDate();
-    return y+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day;
+    const d=new Date(Math.round((val-25569)*86400*1000));
+    return d.toISOString().slice(0,10);
   }
-  var s=val.toString().trim();
-  // dd/mm/yyyy ou dd/mm/yy
-  var m1=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-  if(m1){
-    var yr=parseInt(m1[3]);if(yr<100)yr+=2000;
-    return yr+'-'+m1[2].padStart(2,'0')+'-'+m1[1].padStart(2,'0');
-  }
-  // yyyy-mm-dd ou ISO
-  var m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const s=val.toString().trim();
+  // dd/mm/yyyy
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  // yyyy-mm-dd or ISO
+  const m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(m2)return m2[1]+'-'+m2[2]+'-'+m2[3];
   return null;
 }
 function rebuildFromDetail(){
   const from=DATE_FROM||null, to=DATE_TO||null;
-  // Filtra DETAIL_ROWS pela data selecionada
-  // Se r.date é null E há filtro ativo, exclui a linha (sem data = ignorar no filtro)
-  const filtered=DETAIL_ROWS.filter(function(r){
-    if(from||to){
-      if(!r.date) return false; // sem data: exclui quando há filtro
-      if(from && r.date < from) return false;
-      if(to   && r.date > to)   return false;
-    }
+  const filtered=DETAIL_ROWS.filter(r=>{
+    if(!r.date)return true;
+    if(from&&r.date<from)return false;
+    if(to&&r.date>to)return false;
     return true;
   });
   const opMap={},itemMap={},newOpItemMap={};
@@ -3001,36 +2991,25 @@ function rebuildFromDetail(){
       newOpItemMap[r.sep][r.produto].cancel+=r.qtd;newOpItemMap[r.sep][r.produto].pedidos++;
     }
   }
-  // Reconstrói RAW_OPERATORS somente com quem tem dados no período filtrado
+  // Mesclar operadores do XLSX com lista cadastrada — preserva todos os nomes
+  const newOpsFromXlsx = Object.entries(opMap)
+    .filter(([name])=>!/^helppi/i.test(name))
+    .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}));
+  const newOpsMap = Object.fromEntries(newOpsFromXlsx.map(o=>[o.name,o]));
+  // Atualizar/adicionar todos os que vieram do XLSX
+  const mergedMap = {};
+  RAW_OPERATORS.forEach(o=>{ mergedMap[o.name] = Object.assign({},o); });
+  newOpsFromXlsx.forEach(o=>{ mergedMap[o.name] = o; });
   RAW_OPERATORS.length=0;
-  Object.entries(opMap)
-    .filter(function([name]){return !/^helppi/i.test(name);})
-    .map(function([name,v]){return{name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size};})
-    .sort(function(a,b){return b.cancel-a.cancel;})
-    .forEach(function(o){RAW_OPERATORS.push(o);});
+  Object.values(mergedMap).sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
   RAW_ITEMS_GLOBAL.length=0;
-  Object.entries(itemMap)
-    .map(function([produto,v]){return{produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size};})
-    .sort(function(a,b){return b.cancel-a.cancel;})
-    .slice(0,20)
-    .forEach(function(i){RAW_ITEMS_GLOBAL.push(i);});
-  Object.keys(OP_ITEM_MAP).forEach(function(k){delete OP_ITEM_MAP[k];});
-  Object.assign(OP_ITEM_MAP,newOpItemMap);
+  Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
+  Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
   BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
-  // Atualiza badge do período
-  var dates=filtered.map(function(r){return r.date;}).filter(Boolean).sort();
-  if(dates.length){
-    var el=document.getElementById('periodoBadge');
-    if(el) el.textContent='Período: '+dates[0]+' a '+dates[dates.length-1];
-  }
-  // Preserva selectedOps se ainda existem operadores no resultado
-  if(selectedOps){
-    var validNames=new Set(RAW_OPERATORS.map(function(o){return o.name;}));
-    var newSel=new Set([...selectedOps].filter(function(n){return validNames.has(n);}));
-    selectedOps=newSel.size>0?newSel:null;
-  }
-  buildChips();
-  renderAll();
+  // Update period badge in header
+  const dates=filtered.map(r=>r.date).filter(Boolean).sort();
+  if(dates.length)document.getElementById('periodoBadge').textContent='Período: '+dates[0]+' a '+dates[dates.length-1];
+  selectedOps=null;buildChips();applyFilter();
 }
 
 function buildChips(){
@@ -3111,7 +3090,7 @@ function _setCancelEmptyState(isEmpty) {
 
 function renderAll(){
   const{ops,items,totalCancel,totalPedidos,skus}=getFiltered();
-  const hasData = DETAIL_ROWS.length > 0;
+  const hasData = RAW_OPERATORS.length > 0;
   _setCancelEmptyState(!hasData);
   if (!hasData) return;
   updateKPIs(totalCancel,totalPedidos,totalPedidos,skus,ops.length);
@@ -3400,79 +3379,72 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 // FILE UPLOAD
 function readXlsx(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}));}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
 function norm(obj){const o={};for(const k in obj)o[k.trim().toLowerCase()]=obj[k];return o;}
-var prodFile=null,ruptFile=null;
+let prodFile=null,ruptFile=null;
 // NOTE: file listeners are managed by the portal admin gate (see portal script below)
 // These stubs exist so chkReady() is available for the cancel dashboard
 function chkReady(){
-  if(typeof isAdmin!=='undefined'&&!isAdmin){prodFile=null;ruptFile=null;window.prodFile=null;window.ruptFile=null;}
-  var pf=window.prodFile||prodFile, rf=window.ruptFile||ruptFile;
-  document.getElementById('btnUpdate').disabled=!(pf&&rf);
+  if(typeof isAdmin!=='undefined'&&!isAdmin){prodFile=null;ruptFile=null;}
+  document.getElementById('btnUpdate').disabled=!(prodFile&&ruptFile);
 }
 function showSt(msg,type){const el=document.getElementById('statusMsg');el.textContent=msg;el.className='status-msg '+type;}
 
 async function processFiles(skipAuthCheck){
   if (!skipAuthCheck && !isAdmin) { showLoginModal(); return; }
-  const pf = window.prodFile || prodFile;
-  const rf = window.ruptFile || ruptFile;
-  if (!pf || !rf) { showSt('❌ Arquivos não encontrados','err'); return; }
   const btn=document.getElementById('btnUpdate');btn.disabled=true;
   showSt('⏳ Lendo arquivos...','loading');
   try{
-    const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
-    showSt('⏳ Cruzando pedidos...','loading');
-
-    // ── PRODU: monta mapa numPedido → {sep, date} ──
-    // Usa col C (idx 2) = número do pedido, col separador por nome, col data por nome
-    const pedidoMap={};
+    const[pRows,rRows]=await Promise.all([readXlsx(prodFile),readXlsx(ruptFile)]);
+    showSt('⏳ Cruzando col C × col Q...','loading');
+    const keyToSep={};
     for(const r of pRows){
-      const vals=Object.values(r);
       const n=norm(r);
-      // Número do pedido — col C (idx 2) com fallback por nome
-      const numPed=((vals[2]||n['número do pedido']||n['numero do pedido']||n['pedido']||'')
-        .toString().trim().replace(/^0+/,'')||'');
-      if(!numPed) continue;
-      // Separador — busca por nome de coluna
-      const sep=(n['separador']||n['operador']||n['funcionário']||n['funcionario']||'').toString().trim();
-      // Data — busca por nome de coluna
-      const rawDate=n['data (referente ao pedido)']||n['data referente ao pedido']||n['data do pedido']||n['data']||vals[0]||'';
-      if(!pedidoMap[numPed]) pedidoMap[numPed]={sep:'',date:null};
-      if(sep && !/^helppi/i.test(sep)) pedidoMap[numPed].sep=sep;
-      if(rawDate && !pedidoMap[numPed].date) pedidoMap[numPed].date=parseDate(rawDate);
+      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
+      const sep=(n['separador']||'').toString().trim();
+      if(numPed&&sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
     }
-
-    // ── RUPTURA: col F (idx 5) = chave de cruzamento com numPedido ──
+    // Build a date lookup: pedido number → date string
+    const keyToDate={};
+    for(const r of pRows){
+      const n=norm(r);
+      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
+      const rawDate=n['data (referente ao pedido)']||n['data']||'';
+      if(numPed&&rawDate)keyToDate[numPed]=parseDate(rawDate);
+    }
+    const opMap={},itemMap={},newOpItemMap={};
+    let tc=0,tr=0;const ap=new Set(),as=new Set();
     DETAIL_ROWS.length=0;
     for(const r of rRows){
-      const vals=Object.values(r);
       const n=norm(r);
-      // Coluna F = índice 5 — chave de cruzamento
-      const sid=((vals[5]||'').toString().trim().replace(/^0+/,'')||'0');
-      // Produto
-      const produto=(n['produto']||n['descrição']||n['descricao']||n['item']||'').toString().trim();
-      if(!produto) continue;
-      // Quantidade
-      const qtd=parseFloat(n['qtd_indisponivel']||n['qtd indisponivel']||n['quantidade']||n['qtd']||vals[vals.length-1]||0)||0;
-      const match=pedidoMap[sid]||{sep:'',date:null};
-      if(/^helppi/i.test(match.sep)) continue;
-      DETAIL_ROWS.push({date:match.date, sep:match.sep, produto, qtd, sid});
+      const sid=(n['short_id']||Object.values(r)[16]||'').toString().trim().replace(/^0+/,'')||'0';
+      const produto=(n['produto']||'').toString().trim();
+      const qtd=parseFloat(n['qtd_indisponivel']||0)||0;
+      if(!produto)continue;
+      const dateStr=keyToDate[sid]||null;
+      const sep=keyToSep[sid]||'';
+      // Ignorar operadores Helppi nos cancelamentos/rupturas
+      if(/helppi/i.test(sep)) continue;
+      DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
+      tr++;tc+=qtd;ap.add(sid);as.add(produto);
+      if(!itemMap[produto])itemMap[produto]={cancel:0,pedidos:new Set()};
+      itemMap[produto].cancel+=qtd;itemMap[produto].pedidos.add(sid);
+      if(sep){
+        if(!opMap[sep])opMap[sep]={cancel:0,pedidos:new Set(),itens:new Set()};
+        opMap[sep].cancel+=qtd;opMap[sep].pedidos.add(sid);opMap[sep].itens.add(produto);
+        if(!newOpItemMap[sep])newOpItemMap[sep]={};
+        if(!newOpItemMap[sep][produto])newOpItemMap[sep][produto]={cancel:0,pedidos:0};
+        newOpItemMap[sep][produto].cancel+=qtd;newOpItemMap[sep][produto].pedidos++;
+      }
     }
-
-    // ── Período dos dados ──
-    const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
-    DATE_FROM=null; DATE_TO=null;
-    if(allDates.length){
-      const d0=allDates[0], d1=allDates[allDates.length-1];
-      document.getElementById('dateFrom').value=d0;
-      document.getElementById('dateTo').value=d1;
-      document.getElementById('periodoBadge').textContent='Período: '+d0+' a '+d1;
-      var badge=document.getElementById('dateBadge');
-      if(badge){badge.textContent='';badge.classList.remove('active');}
-    }
-    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · '+new Date().toLocaleString('pt-BR');
-    selectedOps=null;
-    rebuildFromDetail();
-    const nOps=RAW_OPERATORS.length, nItens=RAW_ITEMS_GLOBAL.length;
-    showSt('✅ '+DETAIL_ROWS.length+' registros · '+nOps+' operadores · '+nItens+' itens','ok');
+    RAW_OPERATORS.length=0;
+    Object.entries(opMap).filter(([name])=>!/helppi/i.test(name)).map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,40).forEach(o=>RAW_OPERATORS.push(o));
+    RAW_ITEMS_GLOBAL.length=0;
+    Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
+    Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
+    BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
+    try{const dates=pRows.map(r=>norm(r)['data (referente ao pedido)']).filter(Boolean);if(dates.length){const s=[...new Set(dates)].sort();const d0=parseDate(s[0]),d1=parseDate(s[s.length-1]);document.getElementById('periodoBadge').textContent='Período: '+(d0||s[0].toString().slice(0,10))+' a '+(d1||s[s.length-1].toString().slice(0,10));if(d0)document.getElementById('dateFrom').value=d0;if(d1)document.getElementById('dateTo').value=d1;DATE_FROM=d0;DATE_TO=d1;updateDateBadge();}}catch(e){}
+    document.getElementById('footerSrc').textContent='Fonte: '+prodFile.name+' × '+ruptFile.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
+    selectedOps=null;buildChips();applyFilter();
+    showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
   btn.disabled=false;
 }
