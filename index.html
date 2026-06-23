@@ -3421,77 +3421,40 @@ async function processFiles(skipAuthCheck){
     const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
     showSt('⏳ Cruzando pedidos...','loading');
 
-    // ── Detecta colunas dinamicamente no arquivo PRODU ──
-    // Procura em todas as chaves normalizadas
-    function findKey(n, candidates){
-      for(const c of candidates){ if(n[c]!==undefined && n[c]!=='') return n[c]; }
-      return '';
-    }
-
-    // Monta mapa: número_pedido → {sep, date}
+    // ── PRODU: monta mapa numPedido → {sep, date} ──
+    // Usa col C (idx 2) = número do pedido, col separador por nome, col data por nome
     const pedidoMap={};
     for(const r of pRows){
+      const vals=Object.values(r);
       const n=norm(r);
-      // Número do pedido — tenta vários nomes de coluna e fallback em todas as colunas com número longo
-      let numPed = findKey(n,[
-        'número do pedido','numero do pedido','num pedido','numpedido',
-        'pedido','n pedido','n. pedido','num. pedido','order','order id','orderid'
-      ]);
-      // Fallback: varre todos os valores procurando número com 6+ dígitos
-      if(!numPed){
-        for(const v of Object.values(r)){
-          const s=(v||'').toString().trim();
-          if(/^\d{6,}$/.test(s)){numPed=s;break;}
-        }
-      }
-      numPed=(numPed||'').toString().trim().replace(/^0+/,'')||'';
+      // Número do pedido — col C (idx 2) com fallback por nome
+      const numPed=((vals[2]||n['número do pedido']||n['numero do pedido']||n['pedido']||'')
+        .toString().trim().replace(/^0+/,'')||'');
       if(!numPed) continue;
-
-      const sep = findKey(n,[
-        'separador','operador','sep','picker','nome separador','nome do separador',
-        'funcionario','funcionário','colaborador','atendente'
-      ]);
-      const rawDate = findKey(n,[
-        'data (referente ao pedido)','data referente ao pedido','data do pedido',
-        'data pedido','data','date','dt pedido','dt_pedido','data_pedido'
-      ]);
+      // Separador — busca por nome de coluna
+      const sep=(n['separador']||n['operador']||n['funcionário']||n['funcionario']||'').toString().trim();
+      // Data — busca por nome de coluna
+      const rawDate=n['data (referente ao pedido)']||n['data referente ao pedido']||n['data do pedido']||n['data']||vals[0]||'';
       if(!pedidoMap[numPed]) pedidoMap[numPed]={sep:'',date:null};
-      if(sep && !/^helppi/i.test(sep)) pedidoMap[numPed].sep=sep.toString().trim();
-      if(rawDate) pedidoMap[numPed].date=parseDate(rawDate);
+      if(sep && !/^helppi/i.test(sep)) pedidoMap[numPed].sep=sep;
+      if(rawDate && !pedidoMap[numPed].date) pedidoMap[numPed].date=parseDate(rawDate);
     }
 
-    // ── Detecta colunas dinamicamente no arquivo RUPTURA ──
+    // ── RUPTURA: col F (idx 5) = chave de cruzamento com numPedido ──
     DETAIL_ROWS.length=0;
     for(const r of rRows){
+      const vals=Object.values(r);
       const n=norm(r);
-      // short_id — chave de cruzamento com o pedido
-      let sid = findKey(n,[
-        'short_id','shortid','short id','id pedido','id_pedido',
-        'numero pedido','número pedido','num pedido','pedido','order id','orderid'
-      ]);
-      // Fallback: número com 6+ dígitos
-      if(!sid){
-        for(const v of Object.values(r)){
-          const s=(v||'').toString().trim();
-          if(/^\d{6,}$/.test(s)){sid=s;break;}
-        }
-      }
-      sid=(sid||'').toString().trim().replace(/^0+/,'')||'0';
-
-      const produto = findKey(n,[
-        'produto','descricao','descrição','description','item','nome produto',
-        'nome do produto','desc produto','product'
-      ]);
+      // Coluna F = índice 5 — chave de cruzamento
+      const sid=((vals[5]||'').toString().trim().replace(/^0+/,'')||'0');
+      // Produto
+      const produto=(n['produto']||n['descrição']||n['descricao']||n['item']||'').toString().trim();
       if(!produto) continue;
-
-      const qtd = parseFloat(findKey(n,[
-        'qtd_indisponivel','qtd indisponivel','qtd cancelada','qtd cancelado',
-        'quantidade','qtd','qty','quantity','cancelado','indisponivel'
-      ])||0)||0;
-
-      const match = pedidoMap[sid]||{sep:'',date:null};
+      // Quantidade
+      const qtd=parseFloat(n['qtd_indisponivel']||n['qtd indisponivel']||n['quantidade']||n['qtd']||vals[vals.length-1]||0)||0;
+      const match=pedidoMap[sid]||{sep:'',date:null};
       if(/^helppi/i.test(match.sep)) continue;
-      DETAIL_ROWS.push({date:match.date, sep:match.sep, produto:produto.toString().trim(), qtd, sid});
+      DETAIL_ROWS.push({date:match.date, sep:match.sep, produto, qtd, sid});
     }
 
     // ── Período dos dados ──
