@@ -2095,7 +2095,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
     <input type="password" id="login-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
     <div id="login-err">Senha incorreta. Tente novamente.</div>
     <div class="login-btns">
-      <button class="login-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="login-cancel" onclick="closeLoginModal()">Cancelar</button>
       <button class="login-ok" onclick="doLogin()">Entrar</button>
     </div>
   </div>
@@ -3375,7 +3375,7 @@ function renderModalTable(){
   }).join('')||'<tr><td colspan="4" style="color:#5a6480;text-align:center;padding:16px;font-family:Outfit,sans-serif">Nenhum item encontrado</td></tr>';
 }
 function closeModal(){document.getElementById('modalBg').classList.remove('open');}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(document.getElementById('modalBg').classList.contains('open'))closeModal();else closeLoginModal();}});
 
 // FILE UPLOAD
 function readXlsx(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}));}catch(err){rej(err);}};r.onerror=rej;r.readAsArrayBuffer(file);});}
@@ -3756,12 +3756,12 @@ function showLoginModal() {
   setTimeout(function(){ document.getElementById('login-pw').focus(); }, 100);
 }
 
-function closeModal() {
+function closeLoginModal() {
   document.getElementById('login-overlay').classList.remove('open');
 }
 
 function overlayClick(e) {
-  if (e.target === document.getElementById('login-overlay')) closeModal();
+  if (e.target === document.getElementById('login-overlay')) closeLoginModal();
 }
 
 async function doLogin() {
@@ -3802,7 +3802,7 @@ async function doLogin() {
     if (match) {
       _loginAttempts = 0;
       isAdmin = true;
-      closeModal();
+      closeLoginModal();
       setAdminUI(true);
       unlockUploads();
       addLog('Login ADM realizado com sucesso', 'ok');
