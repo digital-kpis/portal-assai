@@ -2933,14 +2933,16 @@ function applyDateFilter(){
   DATE_FROM=document.getElementById('dateFrom').value||null;
   DATE_TO=document.getElementById('dateTo').value||null;
   updateDateBadge();
-  rebuildFromDetail();
+  if(DETAIL_ROWS.length){rebuildFromDetail();}
+  else{selectedOps=null;buildChips();applyFilter();}
 }
 function clearDateFilter(){
   document.getElementById('dateFrom').value='';
   document.getElementById('dateTo').value='';
   DATE_FROM=null;DATE_TO=null;
   updateDateBadge();
-  rebuildFromDetail();
+  if(DETAIL_ROWS.length){rebuildFromDetail();}
+  else{selectedOps=null;buildChips();applyFilter();}
 }
 function updateDateBadge(){
   const b=document.getElementById('dateBadge');
@@ -2956,8 +2958,7 @@ function parseDate(val){
   // Try serial number (Excel date)
   if(typeof val==='number'){
     const d=new Date(Math.round((val-25569)*86400*1000));
-    const y=d.getUTCFullYear(),mo=d.getUTCMonth()+1,dy=d.getUTCDate();
-    return y+'-'+(mo<10?'0':'')+mo+'-'+(dy<10?'0':'')+dy;
+    return d.toISOString().slice(0,10);
   }
   const s=val.toString().trim();
   // dd/mm/yyyy
@@ -2971,8 +2972,7 @@ function parseDate(val){
 function rebuildFromDetail(){
   const from=DATE_FROM||null, to=DATE_TO||null;
   const filtered=DETAIL_ROWS.filter(r=>{
-    if(!from&&!to) return true;
-    if(!r.date) return false;
+    if(!r.date)return true;
     if(from&&r.date<from)return false;
     if(to&&r.date>to)return false;
     return true;
@@ -2991,10 +2991,17 @@ function rebuildFromDetail(){
       newOpItemMap[r.sep][r.produto].cancel+=r.qtd;newOpItemMap[r.sep][r.produto].pedidos++;
     }
   }
+  // Mesclar operadores do XLSX com lista cadastrada — preserva todos os nomes
+  const newOpsFromXlsx = Object.entries(opMap)
+    .filter(([name])=>!/^helppi/i.test(name))
+    .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}));
+  const newOpsMap = Object.fromEntries(newOpsFromXlsx.map(o=>[o.name,o]));
+  // Atualizar/adicionar todos os que vieram do XLSX
+  const mergedMap = {};
+  RAW_OPERATORS.forEach(o=>{ mergedMap[o.name] = Object.assign({},o); });
+  newOpsFromXlsx.forEach(o=>{ mergedMap[o.name] = o; });
   RAW_OPERATORS.length=0;
-  Object.entries(opMap).filter(([name])=>!/^helppi/i.test(name))
-    .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}))
-    .sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
+  Object.values(mergedMap).sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
   RAW_ITEMS_GLOBAL.length=0;
   Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
   Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
@@ -3382,50 +3389,40 @@ function chkReady(){
 function showSt(msg,type){const el=document.getElementById('statusMsg');el.textContent=msg;el.className='status-msg '+type;}
 
 async function processFiles(skipAuthCheck){
-  if (!skipAuthCheck && !isAdmin) { showLoginModal(); return; }\
-  const pf=window.prodFile||prodFile, rf=window.ruptFile||ruptFile;
-  if(!pf||!rf){showSt('❌ Arquivos não encontrados','err');return;}
+  if (!skipAuthCheck && !isAdmin) { showLoginModal(); return; }
   const btn=document.getElementById('btnUpdate');btn.disabled=true;
   showSt('⏳ Lendo arquivos...','loading');
   try{
-    const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
-    showSt('⏳ Cruzando pedidos...','loading');
-
-    // PRODU: mapa numPedido → separador
-    // Col C (idx 2) = número do pedido | col "separador" = separador
+    const[pRows,rRows]=await Promise.all([readXlsx(prodFile),readXlsx(ruptFile)]);
+    showSt('⏳ Cruzando col C × col Q...','loading');
     const keyToSep={};
     for(const r of pRows){
       const n=norm(r);
-      const numPed=((n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'')
-        .toString().trim().replace(/^0+/,'')||'');
-      const sep=(n['separador']||n['operador']||'').toString().trim();
-      if(numPed&&sep&&!/^helppi/i.test(sep)) keyToSep[numPed]=sep;
+      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
+      const sep=(n['separador']||'').toString().trim();
+      if(numPed&&sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
     }
-
-    // RUPTURA: estrutura confirmada pelo usuário:
-    // Col F (idx 5)  = dt_pedido  → DATA
-    // Col G (idx 6)  = produto    → PRODUTO
-    // Col K (idx 10) = qtd_indisponivel → QTD
-    // Col Q (idx 16) = short_id   → chave de cruzamento com PRODU
+    // Build a date lookup: pedido number → date string
+    const keyToDate={};
+    for(const r of pRows){
+      const n=norm(r);
+      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
+      const rawDate=n['data (referente ao pedido)']||n['data']||'';
+      if(numPed&&rawDate)keyToDate[numPed]=parseDate(rawDate);
+    }
     const opMap={},itemMap={},newOpItemMap={};
-    let tc=0,tr=0; const ap=new Set(),as=new Set();
+    let tc=0,tr=0;const ap=new Set(),as=new Set();
     DETAIL_ROWS.length=0;
     for(const r of rRows){
-      const vals=Object.values(r);
       const n=norm(r);
-      // Chave de cruzamento: short_id = col Q (idx 16)
-      const sid=((n['short_id']||vals[16]||'').toString().trim().replace(/^0+/,'')||'0');
-      // Produto: col G (idx 6)
-      const produto=((n['produto']||vals[6]||'').toString().trim());
-      if(!produto) continue;
-      // Quantidade: col K (idx 10)
-      const qtd=parseFloat(n['qtd_indisponivel']||vals[10]||0)||0;
-      // Data: col F (idx 5) — dt_pedido — vem direto da ruptura
-      const rawDate=n['dt_pedido']||vals[5]||'';
-      const dateStr=parseDate(rawDate)||null;
-      // Separador: cruzamento com PRODU via short_id
+      const sid=(n['short_id']||Object.values(r)[16]||'').toString().trim().replace(/^0+/,'')||'0';
+      const produto=(n['produto']||'').toString().trim();
+      const qtd=parseFloat(n['qtd_indisponivel']||0)||0;
+      if(!produto)continue;
+      const dateStr=keyToDate[sid]||null;
       const sep=keyToSep[sid]||'';
-      if(/^helppi/i.test(sep)) continue;
+      // Ignorar operadores Helppi nos cancelamentos/rupturas
+      if(/helppi/i.test(sep)) continue;
       DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
       tr++;tc+=qtd;ap.add(sid);as.add(produto);
       if(!itemMap[produto])itemMap[produto]={cancel:0,pedidos:new Set()};
@@ -3439,28 +3436,13 @@ async function processFiles(skipAuthCheck){
       }
     }
     RAW_OPERATORS.length=0;
-    Object.entries(opMap).filter(([name])=>!/helppi/i.test(name))
-      .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}))
-      .sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
+    Object.entries(opMap).filter(([name])=>!/helppi/i.test(name)).map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,40).forEach(o=>RAW_OPERATORS.push(o));
     RAW_ITEMS_GLOBAL.length=0;
-    Object.entries(itemMap)
-      .map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size}))
-      .sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
-    Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);
-    Object.assign(OP_ITEM_MAP,newOpItemMap);
+    Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
+    Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
     BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
-
-    // Período: baseado nas datas da ruptura (dt_pedido col F)
-    const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
-    if(allDates.length){
-      const d0=allDates[0], d1=allDates[allDates.length-1];
-      document.getElementById('periodoBadge').textContent='Período: '+d0+' a '+d1;
-      document.getElementById('dateFrom').value=d0;
-      document.getElementById('dateTo').value=d1;
-      DATE_FROM=null; DATE_TO=null; // sem filtro inicial — mostra tudo
-      updateDateBadge();
-    }
-    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · '+new Date().toLocaleString('pt-BR');
+    try{const dates=pRows.map(r=>norm(r)['data (referente ao pedido)']).filter(Boolean);if(dates.length){const s=[...new Set(dates)].sort();const d0=parseDate(s[0]),d1=parseDate(s[s.length-1]);document.getElementById('periodoBadge').textContent='Período: '+(d0||s[0].toString().slice(0,10))+' a '+(d1||s[s.length-1].toString().slice(0,10));if(d0)document.getElementById('dateFrom').value=d0;if(d1)document.getElementById('dateTo').value=d1;DATE_FROM=d0;DATE_TO=d1;updateDateBadge();}}catch(e){}
+    document.getElementById('footerSrc').textContent='Fonte: '+prodFile.name+' × '+ruptFile.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
     selectedOps=null;buildChips();applyFilter();
     showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
