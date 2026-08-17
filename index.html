@@ -2958,24 +2958,24 @@ function updateDateBadge(){
 }
 function parseDate(val){
   if(!val)return null;
-  // Try serial number (Excel date)
   if(typeof val==='number'){
     const d=new Date(Math.round((val-25569)*86400*1000));
-    return d.toISOString().slice(0,10);
+    const y=d.getUTCFullYear(),mo=d.getUTCMonth()+1,dy=d.getUTCDate();
+    return y+'-'+(mo<10?'0':'')+mo+'-'+(dy<10?'0':'')+dy;
   }
   const s=val.toString().trim();
-  // dd/mm/yyyy
-  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
-  // yyyy-mm-dd or ISO
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m){const yr=parseInt(m[3]);return (yr<100?yr+2000:yr)+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');}
   const m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(m2)return m2[1]+'-'+m2[2]+'-'+m2[3];
   return null;
 }
 function rebuildFromDetail(){
-  const from=DATE_FROM||null, to=DATE_TO||null;
+  const from=DATE_FROM||null,to=DATE_TO||null;
+  // Filtra por data — registros sem data são excluídos quando há filtro ativo
   const filtered=DETAIL_ROWS.filter(r=>{
-    if(!r.date)return true;
+    if(!from&&!to)return true;
+    if(!r.date)return false;
     if(from&&r.date<from)return false;
     if(to&&r.date>to)return false;
     return true;
@@ -2994,25 +2994,19 @@ function rebuildFromDetail(){
       newOpItemMap[r.sep][r.produto].cancel+=r.qtd;newOpItemMap[r.sep][r.produto].pedidos++;
     }
   }
-  // Mesclar operadores do XLSX com lista cadastrada — preserva todos os nomes
-  const newOpsFromXlsx = Object.entries(opMap)
-    .filter(([name])=>!/^helppi/i.test(name))
-    .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}));
-  const newOpsMap = Object.fromEntries(newOpsFromXlsx.map(o=>[o.name,o]));
-  // Atualizar/adicionar todos os que vieram do XLSX
-  const mergedMap = {};
-  RAW_OPERATORS.forEach(o=>{ mergedMap[o.name] = Object.assign({},o); });
-  newOpsFromXlsx.forEach(o=>{ mergedMap[o.name] = o; });
   RAW_OPERATORS.length=0;
-  Object.values(mergedMap).sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
+  Object.entries(opMap).filter(([n])=>!/^helppi/i.test(n))
+    .map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size}))
+    .sort((a,b)=>b.cancel-a.cancel).forEach(o=>RAW_OPERATORS.push(o));
   RAW_ITEMS_GLOBAL.length=0;
-  Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
+  Object.entries(itemMap)
+    .map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size}))
+    .sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
   Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
   BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
-  // Update period badge in header
   const dates=filtered.map(r=>r.date).filter(Boolean).sort();
-  if(dates.length)document.getElementById('periodoBadge').textContent='Período: '+dates[0]+' a '+dates[dates.length-1];
-  selectedOps=null;buildChips();applyFilter();
+  if(dates.length){const el=document.getElementById('periodoBadge');if(el)el.textContent='Período: '+dates[0]+' a '+dates[dates.length-1];}
+  buildChips();applyFilter();
 }
 
 function buildChips(){
@@ -3093,7 +3087,7 @@ function _setCancelEmptyState(isEmpty) {
 
 function renderAll(){
   const{ops,items,totalCancel,totalPedidos,skus}=getFiltered();
-  const hasData = RAW_OPERATORS.length > 0;
+  const hasData = DETAIL_ROWS.length > 0;
   _setCancelEmptyState(!hasData);
   if (!hasData) return;
   updateKPIs(totalCancel,totalPedidos,totalPedidos,skus,ops.length);
@@ -3413,40 +3407,34 @@ async function processFiles(skipAuthCheck){
       const rawDate=n['data (referente ao pedido)']||n['data']||'';
       if(numPed&&rawDate)keyToDate[numPed]=parseDate(rawDate);
     }
-    const opMap={},itemMap={},newOpItemMap={};
-    let tc=0,tr=0;const ap=new Set(),as=new Set();
+    // Popula DETAIL_ROWS — única fonte de verdade
     DETAIL_ROWS.length=0;
     for(const r of rRows){
       const n=norm(r);
       const sid=(n['short_id']||Object.values(r)[16]||'').toString().trim().replace(/^0+/,'')||'0';
       const produto=(n['produto']||'').toString().trim();
-      const qtd=parseFloat(n['qtd_indisponivel']||0)||0;
       if(!produto)continue;
-      const rawDateR=n['dt_pedido']||Object.values(r)[5]||'';const dateStr=parseDate(rawDateR)||keyToDate[sid]||null;
+      const qtd=parseFloat(n['qtd_indisponivel']||0)||0;
+      const rawDate=n['dt_pedido']||Object.values(r)[5]||'';
+      const dateStr=parseDate(rawDate)||keyToDate[sid]||null;
       const sep=keyToSep[sid]||'';
-      // Ignorar operadores Helppi nos cancelamentos/rupturas
-      if(/helppi/i.test(sep)) continue;
+      if(/^helppi/i.test(sep))continue;
       DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
-      tr++;tc+=qtd;ap.add(sid);as.add(produto);
-      if(!itemMap[produto])itemMap[produto]={cancel:0,pedidos:new Set()};
-      itemMap[produto].cancel+=qtd;itemMap[produto].pedidos.add(sid);
-      if(sep){
-        if(!opMap[sep])opMap[sep]={cancel:0,pedidos:new Set(),itens:new Set()};
-        opMap[sep].cancel+=qtd;opMap[sep].pedidos.add(sid);opMap[sep].itens.add(produto);
-        if(!newOpItemMap[sep])newOpItemMap[sep]={};
-        if(!newOpItemMap[sep][produto])newOpItemMap[sep][produto]={cancel:0,pedidos:0};
-        newOpItemMap[sep][produto].cancel+=qtd;newOpItemMap[sep][produto].pedidos++;
-      }
     }
-    RAW_OPERATORS.length=0;
-    Object.entries(opMap).filter(([name])=>!/helppi/i.test(name)).map(([name,v])=>({name,cancel:Math.round(v.cancel),pedidos:v.pedidos.size,itens:v.itens.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,40).forEach(o=>RAW_OPERATORS.push(o));
-    RAW_ITEMS_GLOBAL.length=0;
-    Object.entries(itemMap).map(([produto,v])=>({produto:produto.length>38?produto.slice(0,36)+'…':produto,cancel:Math.round(v.cancel),pedidos:v.pedidos.size})).sort((a,b)=>b.cancel-a.cancel).slice(0,20).forEach(i=>RAW_ITEMS_GLOBAL.push(i));
-    Object.keys(OP_ITEM_MAP).forEach(k=>delete OP_ITEM_MAP[k]);Object.assign(OP_ITEM_MAP,newOpItemMap);
-    BASE_KPI.cancel=Math.round(tc);BASE_KPI.pedidos=ap.size;BASE_KPI.registros=tr;BASE_KPI.skus=as.size;BASE_KPI.operators=RAW_OPERATORS.length;
-    try{const dates=pRows.map(r=>norm(r)['data (referente ao pedido)']).filter(Boolean);if(dates.length){const s=[...new Set(dates)].sort();const d0=parseDate(s[0]),d1=parseDate(s[s.length-1]);document.getElementById('periodoBadge').textContent='Período: '+(d0||s[0].toString().slice(0,10))+' a '+(d1||s[s.length-1].toString().slice(0,10));if(d0)document.getElementById('dateFrom').value=d0;if(d1)document.getElementById('dateTo').value=d1;DATE_FROM=d0;DATE_TO=d1;updateDateBadge();}}catch(e){}
-    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · Cruzamento: número do pedido (col C) × short_id (col Q) · '+new Date().toLocaleString('pt-BR');
-    selectedOps=null;buildChips();applyFilter();
+    // Período: range completo dos dados sem travar filtro
+    const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
+    DATE_FROM=null; DATE_TO=null;
+    if(allDates.length){
+      const d0=allDates[0],d1=allDates[allDates.length-1];
+      document.getElementById('dateFrom').value=d0;
+      document.getElementById('dateTo').value=d1;
+      document.getElementById('periodoBadge').textContent='Período: '+d0+' a '+d1;
+    }
+    const badge=document.getElementById('dateBadge');
+    if(badge){badge.textContent='';badge.classList.remove('active');}
+    document.getElementById('footerSrc').textContent='Fonte: '+pf.name+' × '+rf.name+' · '+new Date().toLocaleString('pt-BR');
+    selectedOps=null;
+    rebuildFromDetail();
     showSt('✅ '+RAW_OPERATORS.length+' operadores · '+RAW_ITEMS_GLOBAL.length+' itens','ok');
   }catch(err){console.error(err);showSt('❌ '+err.message,'err');}
   btn.disabled=false;
@@ -3967,16 +3955,26 @@ async function ghUploadFile(path, file, msg) {
   } catch(e){}
   var body = { message: msg, content: b64 };
   if (sha) body.sha = sha;
-  var resp = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-    method:'PUT',
-    headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok) {
-    var er = await resp.json();
-    throw new Error('GitHub '+resp.status+': '+(er.message||JSON.stringify(er)));
+  // Retry até 3x para arquivos grandes
+  var lastErr = null;
+  for(var attempt=1; attempt<=3; attempt++){
+    try{
+      var resp = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
+        method:'PUT',
+        headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      if (!resp.ok) {
+        var er = await resp.json();
+        throw new Error('GitHub '+resp.status+': '+(er.message||JSON.stringify(er)));
+      }
+      return await resp.json();
+    }catch(e){
+      lastErr=e;
+      if(attempt<3) await new Promise(r=>setTimeout(r,2000*attempt));
+    }
   }
-  return await resp.json();
+  throw lastErr;
 }
 
 // Salva JSON de metadados no GitHub (última atualização)
