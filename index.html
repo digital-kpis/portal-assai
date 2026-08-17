@@ -1791,7 +1791,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
         <button onclick="saveGhToken()" style="background:#38f0d4;color:#07090f;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Salvar Token</button>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="gh-repo" placeholder="diegosrsantos22/portal-assai"
+        <input type="text" id="gh-repo" placeholder="digital-kpis/portal-assai"
           style="background:#0e1118;border:1px solid #2a3448;border-radius:8px;padding:9px 14px;color:#dde3f0;font-size:13px;flex:1;min-width:260px;outline:none;font-family:'JetBrains Mono',monospace">
         <button onclick="testGhConnection()" style="background:#1a2030;border:1px solid #2a3448;color:#8892aa;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">🔍 Testar Conexão</button>
       </div>
@@ -2169,7 +2169,9 @@ function parseRows(rows) {
     subs:  col(['substituições','substituicoes','subs']),
     ped:   col(['número do pedido','num_pedido','pedido']),
   };
-  if (!C.sep) throw new Error('Coluna "separador" não encontrada.');
+  if (!C.sep) throw new Error('Coluna "separador" não encontrada. Colunas encontradas: '+keys.slice(0,8).join(', '));
+  // Colunas opcionais — não quebra se não existir
+  // C.ped, C.itens, C.tsep, etc podem ser null
 
   function parseDt(v) {
     if (!v) return null;
@@ -3904,13 +3906,13 @@ function setSt(id, msg, type) {
 
 function getGhConfig() {
   var token = localStorage.getItem('gh_token') || '';
-  var repo  = localStorage.getItem('gh_repo')  || 'diegosrsantos22/portal-assai';
+  var repo  = localStorage.getItem('gh_repo')  || 'digital-kpis/portal-assai';
   return { token: token.trim(), repo: repo.trim() };
 }
 
 function saveGhToken() {
   var t = document.getElementById('gh-token').value.trim();
-  var r = (document.getElementById('gh-repo').value||'').trim() || 'diegosrsantos22/portal-assai';
+  var r = (document.getElementById('gh-repo').value||'').trim() || 'digital-kpis/portal-assai';
   if (!t) { ghStatus('⚠️ Informe o token.', 'err'); return; }
   localStorage.setItem('gh_token', t);
   localStorage.setItem('gh_repo', r);
@@ -4273,7 +4275,7 @@ async function publishCancelData() {
 
 // ── AUTO-CARREGAR dados do GitHub ao abrir o site ──────────
 async function autoLoad() {
-  var repo = (localStorage.getItem('gh_repo')||'diegosrsantos22/portal-assai').trim();
+  var repo = (localStorage.getItem('gh_repo')||'digital-kpis/portal-assai').trim();
   loadStart('Sincronizando dados…', 'Verificando atualizações no GitHub');
   try {
     var meta = await ghReadMeta(repo);
@@ -4318,7 +4320,7 @@ async function autoLoad() {
 
 // ── BANNER DE ÚLTIMA ATUALIZAÇÃO ────────────────────────────
 async function updateBanner(metaOverride) {
-  var repo = (localStorage.getItem('gh_repo')||'diegosrsantos22/portal-assai').trim();
+  var repo = (localStorage.getItem('gh_repo')||'digital-kpis/portal-assai').trim();
   var meta = metaOverride || (await ghReadMeta(repo));
 
   var rowProd   = document.getElementById('update-prod-row');
@@ -4343,7 +4345,7 @@ async function updateBanner(metaOverride) {
 // ── CARREGAR TOKEN NO FORMULÁRIO ─────────────────────────────
 function loadGhForm() {
   var t=localStorage.getItem('gh_token')||'';
-  var r=localStorage.getItem('gh_repo')||'diegosrsantos22/portal-assai';
+  var r=localStorage.getItem('gh_repo')||'digital-kpis/portal-assai';
   var te=document.getElementById('gh-token'), re=document.getElementById('gh-repo');
   if(te&&t) te.value=t;
   if(re) re.value=r;
@@ -4545,7 +4547,7 @@ async function loadHistorico() {
   if (!grid) return;
   grid.innerHTML = '<div style="color:#5a6480;font-size:13px;padding:20px">🔄 Buscando arquivos no GitHub...</div>';
 
-  var repo = (localStorage.getItem('gh_repo') || 'diegosrsantos22/portal-assai').trim();
+  var repo = (localStorage.getItem('gh_repo') || 'digital-kpis/portal-assai').trim();
   loadStart('Carregando Histórico…', repo);
   try {
     var url = 'https://api.github.com/repos/' + repo + '/contents/data';
@@ -4654,7 +4656,7 @@ async function initRanking() {
   var chips = document.getElementById('rank-chips');
   if (!chips) return;
   chips.innerHTML = '<div style="color:#5a6480;font-size:12px;padding:8px 0">🔄 Carregando meses...</div>';
-  var repo = (localStorage.getItem('gh_repo') || 'diegosrsantos22/portal-assai').trim();
+  var repo = (localStorage.getItem('gh_repo') || 'digital-kpis/portal-assai').trim();
   loadStart('Carregando Ranking…', 'Buscando meses disponíveis');
   try {
     var res   = await fetch('https://api.github.com/repos/' + repo + '/contents/data');
