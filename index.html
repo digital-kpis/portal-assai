@@ -1343,22 +1343,24 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
   <div class="tab" data-tab="comparativo" onclick="switchProdTab('comparativo')">⚖️ Comparativo</div>
 </div>
 
+<!-- ══ BARRA DE FILTROS — só aparece na aba Visão Geral ══ -->
+<div id="prod-filter-bar" class="filter-bar">
+  <div class="filter-row">
+    <div class="filter-group"><div class="fl">Data Início</div><input class="fi" type="date" id="fDs" value="2026-04-30"></div>
+    <div class="filter-group"><div class="fl">Data Fim</div><input class="fi" type="date" id="fDe" value="2026-05-13"></div>
+    <div class="filter-group grow"><div class="fl">Separador</div><select class="fi" id="fSep"><option value="">Todos os Separadores</option></select></div>
+    <div class="filter-group grow"><div class="fl">Loja</div><select class="fi" id="fLoja"><option value="">Todas as Lojas</option></select></div>
+    <div class="filter-group"><div class="fl">Canal</div><select class="fi" id="fCanal"><option value="">Todos</option></select></div>
+    <div class="filter-actions">
+      <button class="btn-apply" onclick="applyFilters()">✓ Aplicar</button>
+      <button class="btn-clear" onclick="clearFilters()">✕ Limpar</button>
+    </div>
+  </div>
+  <div class="filter-info" id="filterInfo">Carregando…</div>
+</div>
+
 <!-- ══ OVERVIEW ══════════════════════════════════════ -->
 <div id="page-overview" class="page on">
-  <div class="filter-bar">
-    <div class="filter-row">
-      <div class="filter-group"><div class="fl">Data Início</div><input class="fi" type="date" id="fDs" value="2026-04-30"></div>
-      <div class="filter-group"><div class="fl">Data Fim</div><input class="fi" type="date" id="fDe" value="2026-05-13"></div>
-      <div class="filter-group grow"><div class="fl">Separador</div><select class="fi" id="fSep"><option value="">Todos os Separadores</option></select></div>
-      <div class="filter-group grow"><div class="fl">Loja</div><select class="fi" id="fLoja"><option value="">Todas as Lojas</option></select></div>
-      <div class="filter-group"><div class="fl">Canal</div><select class="fi" id="fCanal"><option value="">Todos</option></select></div>
-      <div class="filter-actions">
-        <button class="btn-apply" onclick="applyFilters()">✓ Aplicar</button>
-        <button class="btn-clear" onclick="clearFilters()">✕ Limpar</button>
-      </div>
-    </div>
-    <div class="filter-info" id="filterInfo">Carregando…</div>
-  </div>
 
   <div class="sec-hdr">Indicadores-chave</div>
   <div class="kpi-grid">
@@ -1389,19 +1391,6 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
 
 <!-- ══ OPERATORS ══════════════════════════════════════ -->
 <div id="page-operators" class="page">
-  <div class="filter-bar">
-    <div class="filter-row">
-      <div class="filter-group"><div class="fl">Data Início</div><input class="fi" type="date" id="fDs2" value="2026-04-30"></div>
-      <div class="filter-group"><div class="fl">Data Fim</div><input class="fi" type="date" id="fDe2" value="2026-05-13"></div>
-      <div class="filter-group grow"><div class="fl">Separador</div><select class="fi" id="fSep2"><option value="">Todos</option></select></div>
-      <div class="filter-group"><div class="fl">Canal</div><select class="fi" id="fCanal2"><option value="">Todos</option></select></div>
-      <div class="filter-actions">
-        <button class="btn-apply" onclick="applyFilters()">✓ Aplicar</button>
-        <button class="btn-clear" onclick="clearFilters()">✕ Limpar</button>
-      </div>
-    </div>
-    <div class="filter-info" id="filterInfo2">Carregando…</div>
-  </div>
 
   <div class="tbl-ctrl">
     <input class="tbl-search" id="tblSearch" type="text" placeholder="🔍  Buscar operador..." oninput="opPage=0;renderOpTable()">
@@ -2295,6 +2284,9 @@ function switchProdTab(tab){
   currentTab=tab;
   document.querySelectorAll('#dash-prod .tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===tab));
   document.querySelectorAll('#dash-prod .page').forEach(p=>p.classList.toggle('on',p.id==='page-'+tab));
+  // Mostrar filtro só na aba Visão Geral
+  const fb=document.getElementById('prod-filter-bar');
+  if(fb) fb.style.display=tab==='overview'?'flex':'none';
   if(tab==='overview')renderOverview();
   else if(tab==='operators')renderOpTable();
   else if(tab==='opdetail'){const s=document.getElementById('opSelectDetail');if(s.value)loadOpDetail(s.value);}
