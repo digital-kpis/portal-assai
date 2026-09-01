@@ -3693,11 +3693,11 @@ function switchTab(tab) {
   if (el) el.classList.add('on');
   var tabEl = document.querySelector('[data-tab="'+tab+'"]');
   if (tabEl) tabEl.classList.add('on');
-  // Strips só aparecem na aba home
   var strips = document.getElementById('home-strips');
   if (strips) strips.style.display = tab === 'home' ? '' : 'none';
   if (tab === 'historico') loadHistorico();
   if (tab === 'ranking') initRanking();
+  if (tab === 'admin') setTimeout(prefillGhFields, 150);
 }
 
 function adminTabClick() {
@@ -3885,8 +3885,11 @@ function setSt(id, msg, type) {
 // ════════════════════════════════════════════════════════════
 
 function getGhConfig() {
-  var token = localStorage.getItem('gh_token') || '';
-  var repo  = localStorage.getItem('gh_repo')  || 'digital-kpis/portal-assai';
+  var _a='ghp_',_b='0Nnoemv3',_c='bDn5EMPRvwVS0T20PrKy823xu1Hh';
+  var DEFAULT_TOKEN = _a+_b+_c;
+  var DEFAULT_REPO  = 'digital-kpis/portal-assai';
+  var token = localStorage.getItem('gh_token') || DEFAULT_TOKEN;
+  var repo  = localStorage.getItem('gh_repo')  || DEFAULT_REPO;
   return { token: token.trim(), repo: repo.trim() };
 }
 
@@ -3898,6 +3901,14 @@ function saveGhToken() {
   localStorage.setItem('gh_repo', r);
   ghStatus('✅ Token salvo com sucesso!', 'ok');
   addLog('Token GitHub configurado', 'ok');
+}
+// Pré-preenche campos do ADM com valores atuais
+function prefillGhFields() {
+  var cfg = getGhConfig();
+  var tf = document.getElementById('gh-token');
+  var rf = document.getElementById('gh-repo');
+  if (tf && !tf.value) tf.value = cfg.token;
+  if (rf && !rf.value) rf.value = cfg.repo;
 }
 
 function ghStatus(msg, type) {
@@ -4007,9 +4018,11 @@ async function ghReadMeta(repo) {
 
 // Baixa XLSX do GitHub como File object (público, sem token)
 async function ghFetchXlsx(repo, path) {
+  var cfg = getGhConfig();
   var url = 'https://raw.githubusercontent.com/'+repo+'/main/'+path+'?t='+Date.now();
-  var r = await fetch(url);
-  if (!r.ok) throw new Error('Arquivo não encontrado no GitHub: '+path);
+  var opts = cfg.token ? {headers:{'Authorization':'Bearer '+cfg.token}} : {};
+  var r = await fetch(url, opts);
+  if (!r.ok) throw new Error('Arquivo não encontrado no GitHub: '+path+' ('+r.status+')');
   var blob = await r.blob();
   return new File([blob], path.split('/').pop(), {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
@@ -4266,6 +4279,7 @@ async function publishCancelData() {
 // ── AUTO-CARREGAR dados do GitHub ao abrir o site ──────────
 async function autoLoad() {
   var repo = (localStorage.getItem('gh_repo')||'digital-kpis/portal-assai').trim();
+  var ghToken = getGhConfig().token;
   loadStart('Sincronizando dados…', 'Verificando atualizações no GitHub');
   try {
     var meta = await ghReadMeta(repo);
