@@ -4179,6 +4179,7 @@ async function publishStandaloneHistory() {
 
 async function publishProdData() {
   if (!isAdmin) { showLoginModal(); return; }
+  var _cfg = getGhConfig(); if (!_cfg.token || !_cfg.token.startsWith('ghp_')) { showTokenWarning(publishProdData); return; }
   var file = fileRefs['fp-prod'];
   if (!file) return;
   var btn = document.getElementById('btn-prod');
@@ -4240,6 +4241,7 @@ async function publishProdData() {
 
 // ── PUBLICAR CANCELAMENTOS ──────────────────────────────────
 async function publishCancelData() {
+  var _cfg2 = getGhConfig(); if (!_cfg2.token || !_cfg2.token.startsWith('ghp_')) { showTokenWarning(publishCancelData); return; }
   if (!isAdmin) { showLoginModal(); return; }
   var f1 = fileRefs['fp-c1'], f2 = fileRefs['fp-c2'];
   if (!f1||!f2) return;
@@ -4885,8 +4887,97 @@ function dismissPWA() {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
 }
+
+// ══ TOKEN WARNING MODAL ══════════════════════════════════════
+var _pendingPublishFn = null;
+
+function showTokenWarning(onSave) {
+  _pendingPublishFn = onSave || null;
+  var modal = document.getElementById('tokenWarningModal');
+  modal.style.display = 'flex';
+  var inp = document.getElementById('quickTokenInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+  document.getElementById('quickTokenStatus').textContent = '';
+}
+
+function closeTokenWarning() {
+  document.getElementById('tokenWarningModal').style.display = 'none';
+  _pendingPublishFn = null;
+}
+
+async function saveQuickToken() {
+  var inp = document.getElementById('quickTokenInput');
+  var st = document.getElementById('quickTokenStatus');
+  var t = (inp.value||'').trim();
+  if (!t || !t.startsWith('ghp_')) {
+    st.textContent = '⚠️ Token inválido. Deve começar com ghp_';
+    st.style.color = '#ef4444';
+    return;
+  }
+  st.textContent = '⏳ Testando token...';
+  st.style.color = '#38f0d4';
+  try {
+    var r = await fetch('https://api.github.com/repos/digital-kpis/portal-assai', {
+      headers: {'Authorization': 'Bearer ' + t, 'Accept': 'application/vnd.github+json'}
+    });
+    if (!r.ok) throw new Error('Token inválido ou sem permissão ('+r.status+')');
+    localStorage.setItem('gh_token', t);
+    localStorage.setItem('gh_repo', 'digital-kpis/portal-assai');
+    ghStatus('✅ Token salvo com sucesso!', 'ok');
+    prefillGhFields();
+    st.textContent = '✅ Token válido! Publicando...';
+    st.style.color = '#b8ff57';
+    setTimeout(function(){
+      closeTokenWarning();
+      if (_pendingPublishFn) _pendingPublishFn();
+    }, 800);
+  } catch(e) {
+    st.textContent = '❌ ' + e.message;
+    st.style.color = '#ef4444';
+  }
+}
+
+function requireToken(fn) {
+  var cfg = getGhConfig();
+  if (cfg.token && cfg.token.startsWith('ghp_')) { fn(); }
+  else { showTokenWarning(fn); }
+}
+
 </script>
 
 
+
+<!-- ══ MODAL: TOKEN NÃO CONFIGURADO ══════════════════════════ -->
+<div id="tokenWarningModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#13161f;border:1.5px solid #ef4444;border-radius:18px;width:100%;max-width:480px;padding:32px;font-family:'Outfit',sans-serif">
+    <div style="font-size:36px;text-align:center;margin-bottom:12px">🔑</div>
+    <div style="font-size:18px;font-weight:800;color:#fff;text-align:center;margin-bottom:8px">Token GitHub não configurado</div>
+    <div style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:24px;line-height:1.6">
+      Para publicar arquivos no GitHub, você precisa configurar o token de acesso uma vez neste navegador.
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600;letter-spacing:.05em">COLE O TOKEN GITHUB ABAIXO:</div>
+      <input id="quickTokenInput" type="password" placeholder="ghp_..." 
+        style="width:100%;background:#1e2330;border:1px solid #334155;border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-family:'JetBrains Mono',monospace;box-sizing:border-box;outline:none">
+    </div>
+    <div id="quickTokenStatus" style="font-size:12px;min-height:18px;margin-bottom:16px;text-align:center;font-family:'JetBrains Mono',monospace"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="saveQuickToken()" 
+        style="flex:1;background:#38f0d4;color:#07090f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">
+        ✅ Salvar e Publicar
+      </button>
+      <button onclick="closeTokenWarning()" 
+        style="background:#1e2330;color:#94a3b8;border:1px solid #334155;border-radius:10px;padding:11px 16px;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">
+        Cancelar
+      </button>
+    </div>
+    <div style="margin-top:16px;padding:12px;background:#1e2330;border-radius:10px;font-size:11px;color:#64748b;line-height:1.7">
+      <strong style="color:#94a3b8">Como gerar o token:</strong><br>
+      1. Acesse <span style="color:#38f0d4">github.com/settings/tokens/new</span><br>
+      2. Marque a permissão <strong style="color:#94a3b8">repo</strong><br>
+      3. Clique em <strong style="color:#94a3b8">Generate token</strong> e cole acima
+    </div>
+  </div>
+</div>
 </body>
 </html>
