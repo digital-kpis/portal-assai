@@ -14,10 +14,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
-  const _fbConfig = {
+  firebase.initializeApp({
     apiKey: "AIzaSyD8__1fUkeCRqAw6e6JwxwFEKRhaDk2EZo",
     authDomain: "produtividade-25e56.firebaseapp.com",
     databaseURL: "https://produtividade-25e56-default-rtdb.firebaseio.com",
@@ -25,10 +24,8 @@
     storageBucket: "produtividade-25e56.firebasestorage.app",
     messagingSenderId: "756892624548",
     appId: "1:756892624548:web:e918cf1ec62e59ec90a831"
-  };
-  firebase.initializeApp(_fbConfig);
-  var _fbStorage  = firebase.storage();
-  var _fbDatabase = firebase.database();
+  });
+  var _fbDB = firebase.database();
 </script>
 
 <!-- ══════════════════════════════════════════════════════ -->
@@ -3892,7 +3889,7 @@ function setSt(id, msg, type) {
 // ════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════
-// FIREBASE STORAGE — substitui GitHub como backend de arquivos
+// FIREBASE REALTIME DATABASE — armazena arquivos como base64
 // ══════════════════════════════════════════════════════════
 
 function ghStatus(msg, type) {
@@ -3905,8 +3902,7 @@ function ghStatus(msg, type) {
 async function testFbConnection() {
   ghStatus('⏳ Testando Firebase...', 'info');
   try {
-    var ref = _fbDatabase.ref('portal/status');
-    await ref.set({ping: Date.now()});
+    await _fbDB.ref('portal/ping').set(Date.now());
     ghStatus('✅ Firebase conectado com sucesso!', 'ok');
     addLog('Firebase: conexão OK', 'ok');
   } catch(e) {
@@ -3914,47 +3910,74 @@ async function testFbConnection() {
   }
 }
 
-// Upload de arquivo para Firebase Storage
-async function fbUploadFile(path, file) {
+// Converte File para base64
+function fileToBase64(file) {
   return new Promise(function(resolve, reject) {
-    var ref = _fbStorage.ref(path);
-    var task = ref.put(file);
-    task.on('state_changed',
-      function(snap) {
-        var pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-        ghStatus('⏳ Enviando... ' + pct + '%', 'info');
-      },
-      function(err) { reject(err); },
-      function() { resolve(task.snapshot); }
-    );
+    var reader = new FileReader();
+    reader.onload = function(e) { resolve(e.target.result); };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 }
 
-// Download de arquivo do Firebase Storage como File object
+// Upload: salva arquivo como base64 no Realtime Database
+async function fbUploadFile(path, file) {
+  ghStatus('⏳ Convertendo arquivo...', 'info');
+  var b64 = await fileToBase64(file);
+  var key = path.replace(/[.\/]/g, '_');
+  ghStatus('⏳ Enviando para Firebase...', 'info');
+  await _fbDB.ref('portal/files/' + key).set({
+    name: file.name,
+    path: path,
+    data: b64,
+    size: file.size,
+    updated: new Date().toLocaleString('pt-BR'),
+    ts: Date.now()
+  });
+  ghStatus('✅ Arquivo salvo!', 'ok');
+}
+
+// Download: lê base64 do Realtime Database e retorna File
 async function fbFetchXlsx(path) {
-  var ref = _fbStorage.ref(path);
-  var url = await ref.getDownloadURL();
-  var r = await fetch(url);
-  if (!r.ok) throw new Error('Arquivo não encontrado: ' + path);
-  var blob = await r.blob();
-  var fname = path.split('/').pop();
-  return new File([blob], fname, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var key = path.replace(/[.\/]/g, '_');
+  var snap = await _fbDB.ref('portal/files/' + key).get();
+  if (!snap.exists()) throw new Error('Arquivo não encontrado: ' + path);
+  var d = snap.val();
+  var res = await fetch(d.data);
+  var blob = await res.blob();
+  return new File([blob], d.name, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 
 // Salva metadados no Realtime Database
 async function fbSaveMeta(key, meta) {
-  await _fbDatabase.ref('portal/meta/' + key).set(Object.assign({}, meta, {ts: Date.now()}));
+  await _fbDB.ref('portal/meta/' + key).set(Object.assign({}, meta, {ts: Date.now()}));
 }
 
 // Lê metadados do Realtime Database
 async function fbReadMeta() {
-  var snap = await _fbDatabase.ref('portal/meta').get();
+  var snap = await _fbDB.ref('portal/meta').get();
   return snap.exists() ? snap.val() : {};
 }
 
-// Verifica se arquivo existe no Storage
+// Verifica se arquivo existe no Database
 async function fbFileExists(path) {
-  try { await _fbStorage.ref(path).getMetadata(); return true; } catch(e) { return false; }
+  var key = path.replace(/[.\/]/g, '_');
+  var snap = await _fbDB.ref('portal/files/' + key).get();
+  return snap.exists();
+}
+
+// Lista arquivos históricos do Database
+async function fbListHistFiles() {
+  var snap = await _fbDB.ref('portal/files').get();
+  if (!snap.exists()) return [];
+  var files = [];
+  snap.forEach(function(child) {
+    var d = child.val();
+    if (d.path && /prod_\d{4}-\d{2}\.xlsx/.test(d.path)) {
+      files.push(d);
+    }
+  });
+  return files.sort(function(a,b){ return b.path.localeCompare(a.path); });
 }
 
 // ── PUBLICAR PRODUTIVIDADE ──────────────────────────────────
@@ -4228,18 +4251,15 @@ function confirmReset() {
 async function resetAllData() {
   var status = document.getElementById('reset-status');
   if (status) { status.textContent = '⏳ Removendo dados do Firebase...'; status.style.color = '#38f0d4'; }
-  var paths = ['data/prod.xlsx','data/cancel_prod.xlsx','data/cancel_rupt.xlsx'];
-  var errors = [];
   loadStart('Removendo dados…', 'Aguarde...');
-  for (var path of paths) {
-    try {
-      await _fbStorage.ref(path).delete();
-    } catch(e) { /* arquivo pode não existir */ }
-  }
-  try { await _fbDatabase.ref('portal/meta').remove(); } catch(e){}
-  if (status) { status.textContent = '✅ Dados removidos com sucesso.'; status.style.color = '#b8ff57'; }
-  addLog('Dados removidos do Firebase', 'ok');
-  loadEnd();
+  try {
+    await _fbDB.ref('portal').remove();
+    if (status) { status.textContent = '✅ Dados removidos com sucesso.'; status.style.color = '#b8ff57'; }
+    addLog('Dados removidos do Firebase', 'ok');
+    showToast('Todos os dados foram removidos.', 'ok', {title:'Reset concluído'});
+  } catch(e) {
+    if (status) { status.textContent = '❌ ' + e.message; status.style.color = '#ef4444'; }
+  } finally { loadEnd(); }
 }
 
 // ── LOG ──────────────────────────────────────────────────────
@@ -4362,29 +4382,26 @@ async function loadHistorico() {
   var grid = document.getElementById('hist-grid');
   var empty = document.getElementById('hist-empty');
   if (!grid) return;
-  grid.innerHTML = '<div style="color:#5a6480;font-size:13px;padding:20px">🔄 Buscando arquivos no Firebase...</div>';
-  loadStart('Carregando Histórico…', 'Firebase Storage');
+  grid.innerHTML = '<div style="color:#5a6480;font-size:13px;padding:20px">🔄 Buscando arquivos...</div>';
+  loadStart('Carregando Histórico…', 'Firebase Database');
   try {
-    var ref = _fbStorage.ref('data');
-    var result = await ref.listAll();
-    var prods = result.items.filter(function(i){ return /^prod_\d{4}-\d{2}\.xlsx$/i.test(i.name); })
-                            .sort(function(a,b){ return b.name.localeCompare(a.name); });
-    if (!prods.length) {
+    var files = await fbListHistFiles();
+    if (!files.length) {
       grid.innerHTML = '';
       if (empty) empty.style.display = 'block';
-      return;
+      loadEnd(); return;
     }
     if (empty) empty.style.display = 'none';
     grid.innerHTML = '';
-    prods.forEach(function(item) {
-      var yyyymm = item.name.replace('prod_','').replace('.xlsx','');
+    var MNAMES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    files.forEach(function(d) {
+      var yyyymm = d.path.replace('data/prod_','').replace('.xlsx','');
       var parts = yyyymm.split('-');
-      var MNAMES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       var label = (MNAMES[+parts[1]] || parts[1]) + ' ' + parts[0];
       var card = document.createElement('div');
       card.className = 'hist-card';
-      card.innerHTML = '<div class="hist-card-month">'+label+'</div><div class="hist-card-file">'+item.name+'</div>';
-      card.onclick = function(){ loadHistMonth(item, yyyymm); };
+      card.innerHTML = '<div class="hist-card-month">'+label+'</div><div class="hist-card-file">'+d.name+'</div>';
+      card.onclick = function(){ loadHistMonth(d, yyyymm); };
       grid.appendChild(card);
     });
   } catch(e) {
@@ -4459,21 +4476,18 @@ async function initRanking() {
   var chips = document.getElementById('rank-chips');
   if (!chips) return;
   chips.innerHTML = '<div style="color:#5a6480;font-size:12px;padding:8px 0">🔄 Carregando meses...</div>';
-  loadStart('Carregando Ranking…', 'Firebase Storage');
+  loadStart('Carregando Ranking…', 'Firebase Database');
   try {
-    var ref = _fbStorage.ref('data');
-    var result = await ref.listAll();
-    var prods = result.items.filter(function(f){ return /^prod_\d{4}-\d{2}\.xlsx$/i.test(f.name); })
-                            .sort(function(a,b){ return b.name.localeCompare(a.name); });
+    var files = await fbListHistFiles();
     chips.innerHTML = '';
-    if (!prods.length) {
+    if (!files.length) {
       chips.innerHTML = '<div style="color:#5a6480;font-size:12px">Nenhum mês disponível</div>';
       loadEnd(); return;
     }
-    prods.forEach(function(item, i) {
-      var yyyymm = item.name.replace('prod_','').replace('.xlsx','');
+    var MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    files.forEach(function(d, i) {
+      var yyyymm = d.path.replace('data/prod_','').replace('.xlsx','');
       var parts = yyyymm.split('-');
-      var MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
       var label = (MNAMES[+parts[1]]||parts[1])+'/'+parts[0];
       var btn = document.createElement('button');
       btn.className = 'rank-chip' + (i===0?' on':'');
@@ -4482,11 +4496,11 @@ async function initRanking() {
       btn.onclick = function(){
         document.querySelectorAll('.rank-chip').forEach(function(c){ c.classList.remove('on'); });
         btn.classList.add('on');
-        loadRankingMonth(item, yyyymm);
+        loadRankingMonth(d, yyyymm);
       };
       chips.appendChild(btn);
     });
-    if (prods.length) loadRankingMonth(prods[0], prods[0].name.replace('prod_','').replace('.xlsx',''));
+    if (files.length) loadRankingMonth(files[0], files[0].path.replace('data/prod_','').replace('.xlsx',''));
   } catch(e) {
     chips.innerHTML = '<div style="color:#ef4444;font-size:12px">❌ ' + e.message + '</div>';
   } finally { loadEnd(); }
