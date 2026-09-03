@@ -13,6 +13,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+  const _fbConfig = {
+    apiKey: "AIzaSyD8__1fUkeCRqAw6e6JwxwFEKRhaDk2EZo",
+    authDomain: "produtividade-25e56.firebaseapp.com",
+    databaseURL: "https://produtividade-25e56-default-rtdb.firebaseio.com",
+    projectId: "produtividade-25e56",
+    storageBucket: "produtividade-25e56.firebasestorage.app",
+    messagingSenderId: "756892624548",
+    appId: "1:756892624548:web:e918cf1ec62e59ec90a831"
+  };
+  firebase.initializeApp(_fbConfig);
+  var _fbStorage  = firebase.storage();
+  var _fbDatabase = firebase.database();
+</script>
 
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- ══  ESTILOS — Portal Digital Maracanã               ══ -->
@@ -1767,30 +1784,20 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
       </div>
     </div>
 
-    <!-- ① CONFIGURAÇÃO GITHUB -->
+    <!-- ① STATUS FIREBASE -->
     <div class="adm-sec" id="sec-gh-config">
-      <div class="adm-sec-title">🔑 Configuração GitHub (uma vez só)</div>
+      <div class="adm-sec-title">🔥 Armazenamento Firebase</div>
       <p style="font-size:12px;color:#8892aa;margin-bottom:14px">
-        Para salvar os dados no GitHub, informe seu Token de Acesso Pessoal.<br>
-        <a href="https://github.com/settings/tokens/new?scopes=repo&description=portal-assai" target="_blank" style="color:#38f0d4">→ Criar token aqui</a> (marque a permissão <code>repo</code>)
+        Os arquivos são salvos automaticamente no Firebase Storage e ficam disponíveis para todos os usuários imediatamente. Nenhuma configuração necessária.
       </p>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-        <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-          style="background:#0e1118;border:1px solid #2a3448;border-radius:8px;padding:9px 14px;color:#dde3f0;font-size:13px;flex:1;min-width:260px;outline:none;font-family:'JetBrains Mono',monospace">
-        <button onclick="saveGhToken()" style="background:#38f0d4;color:#07090f;border:none;border-radius:8px;padding:9px 18px;font-weight:700;cursor:pointer;font-family:'Outfit',sans-serif;font-size:13px">Salvar Token</button>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="gh-repo" placeholder="digital-kpis/portal-assai"
-          style="background:#0e1118;border:1px solid #2a3448;border-radius:8px;padding:9px 14px;color:#dde3f0;font-size:13px;flex:1;min-width:260px;outline:none;font-family:'JetBrains Mono',monospace">
-        <button onclick="testGhConnection()" style="background:#1a2030;border:1px solid #2a3448;color:#8892aa;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">🔍 Testar Conexão</button>
-      </div>
+      <button onclick="testFbConnection()" style="background:#1a2030;border:1px solid #2a3448;color:#8892aa;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">🔍 Testar Conexão Firebase</button>
       <div id="gh-status" style="font-size:12px;margin-top:8px;font-family:'JetBrains Mono',monospace;min-height:18px"></div>
     </div>
 
     <!-- ② PUBLICAR PRODUTIVIDADE -->
     <div class="adm-sec">
       <div class="adm-sec-title">📊 Publicar dados — Produtividade</div>
-      <p style="font-size:12px;color:#8892aa;margin-bottom:16px">O arquivo XLSX será enviado ao GitHub e ficará disponível para todos os usuários imediatamente.</p>
+      <p style="font-size:12px;color:#8892aa;margin-bottom:16px">O arquivo XLSX será salvo no Firebase e ficará disponível para todos os usuários imediatamente.</p>
       <div style="max-width:420px">
         <div class="fuz" id="fuz-prod">
           <div class="fuz-icon">📂</div>
@@ -1871,7 +1878,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
     <!-- ④ PUBLICAR CANCELAMENTOS -->
     <div class="adm-sec">
       <div class="adm-sec-title">❌ Publicar dados — Cancelamentos</div>
-      <p style="font-size:12px;color:#8892aa;margin-bottom:16px">Envie os dois arquivos XLSX. Serão publicados no GitHub e visíveis para todos.</p>
+      <p style="font-size:12px;color:#8892aa;margin-bottom:16px">Envie os dois arquivos XLSX. Serão salvos no Firebase e visíveis para todos imediatamente.</p>
       <div class="adm-grid">
         <div class="fuz" id="fuz-c1">
           <div class="fuz-icon">📄</div>
@@ -3884,32 +3891,9 @@ function setSt(id, msg, type) {
 // GITHUB API — dados salvos no repositório, visíveis para todos
 // ════════════════════════════════════════════════════════════
 
-function getGhConfig() {
-  var _a='ghp_',_b='0Nnoemv3',_c='bDn5EMPRvwVS0T20PrKy823xu1Hh';
-  var DEFAULT_TOKEN = _a+_b+_c;
-  var DEFAULT_REPO  = 'digital-kpis/portal-assai';
-  var token = localStorage.getItem('gh_token') || DEFAULT_TOKEN;
-  var repo  = localStorage.getItem('gh_repo')  || DEFAULT_REPO;
-  return { token: token.trim(), repo: repo.trim() };
-}
-
-function saveGhToken() {
-  var t = document.getElementById('gh-token').value.trim();
-  var r = (document.getElementById('gh-repo').value||'').trim() || 'digital-kpis/portal-assai';
-  if (!t) { ghStatus('⚠️ Informe o token.', 'err'); return; }
-  localStorage.setItem('gh_token', t);
-  localStorage.setItem('gh_repo', r);
-  ghStatus('✅ Token salvo com sucesso!', 'ok');
-  addLog('Token GitHub configurado', 'ok');
-}
-// Pré-preenche campos do ADM com valores atuais
-function prefillGhFields() {
-  var cfg = getGhConfig();
-  var tf = document.getElementById('gh-token');
-  var rf = document.getElementById('gh-repo');
-  if (tf && !tf.value) tf.value = cfg.token;
-  if (rf && !rf.value) rf.value = cfg.repo;
-}
+// ══════════════════════════════════════════════════════════
+// FIREBASE STORAGE — substitui GitHub como backend de arquivos
+// ══════════════════════════════════════════════════════════
 
 function ghStatus(msg, type) {
   var el = document.getElementById('gh-status');
@@ -3918,129 +3902,73 @@ function ghStatus(msg, type) {
   el.style.color = type==='ok' ? '#b8ff57' : type==='err' ? '#ef4444' : '#38f0d4';
 }
 
-async function testGhConnection() {
-  var cfg = getGhConfig();
-  if (!cfg.token) { ghStatus('⚠️ Configure o token primeiro.', 'err'); return; }
-  ghStatus('⏳ Testando conexão...', 'info');
-  loadStart('Testando GitHub…', cfg.repo);
+async function testFbConnection() {
+  ghStatus('⏳ Testando Firebase...', 'info');
   try {
-    var r = await fetch('https://api.github.com/repos/' + cfg.repo, {
-      headers: { 'Authorization': 'Bearer ' + cfg.token, 'Accept': 'application/vnd.github+json' }
-    });
-    if (r.ok) {
-      var d = await r.json();
-      ghStatus('✅ Conectado: ' + d.full_name + ' (' + (d.private?'privado':'público') + ')', 'ok');
-      addLog('GitHub: conexão OK — ' + d.full_name, 'ok');
-    } else {
-      var e = await r.json();
-      ghStatus('❌ Erro ' + r.status + ': ' + (e.message||'token inválido ou sem permissão'), 'err');
-    }
-  } catch(err) { ghStatus('❌ Falha de rede: ' + err.message, 'err'); }
-  finally { loadEnd(); }
-}
-
-// Envia arquivo ao GitHub (cria ou atualiza — obtem SHA se já existir)
-async function ghUploadFile(path, file, msg) {
-  var cfg = getGhConfig();
-  if (!cfg.token) throw new Error('Token GitHub não configurado. Vá em ⚙️ Administrador → Configuração GitHub.');
-  var b64 = await new Promise(function(res,rej){
-    var rd = new FileReader();
-    rd.onload = function(e){ res(e.target.result.split(',')[1]); };
-    rd.onerror = rej;
-    rd.readAsDataURL(file);
-  });
-  var sha = null;
-  try {
-    var chk = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-      headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'}
-    });
-    if (chk.ok) { var ex = await chk.json(); sha = ex.sha; }
-  } catch(e){}
-  var body = { message: msg, content: b64 };
-  if (sha) body.sha = sha;
-  // Retry até 3x para arquivos grandes
-  var lastErr = null;
-  for(var attempt=1; attempt<=3; attempt++){
-    try{
-      var resp = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-        method:'PUT',
-        headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
-        body: JSON.stringify(body)
-      });
-      if (!resp.ok) {
-        var er = await resp.json();
-        throw new Error('GitHub '+resp.status+': '+(er.message||JSON.stringify(er)));
-      }
-      return await resp.json();
-    }catch(e){
-      lastErr=e;
-      if(attempt<3) await new Promise(r=>setTimeout(r,2000*attempt));
-    }
+    var ref = _fbDatabase.ref('portal/status');
+    await ref.set({ping: Date.now()});
+    ghStatus('✅ Firebase conectado com sucesso!', 'ok');
+    addLog('Firebase: conexão OK', 'ok');
+  } catch(e) {
+    ghStatus('❌ Erro: ' + e.message, 'err');
   }
-  throw lastErr;
 }
 
-// Salva JSON de metadados no GitHub (última atualização)
-async function ghSaveMeta(key, meta) {
-  var cfg = getGhConfig();
-  if (!cfg.token) return;
-  var path = 'data/meta_'+key+'.json';
-  var content = JSON.stringify(meta, null, 2);
-  var b64 = btoa(unescape(encodeURIComponent(content)));
-  var sha = null;
-  try {
-    var chk = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-      headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'}
-    });
-    if (chk.ok){ var ex = await chk.json(); sha = ex.sha; }
-  } catch(e){}
-  var body = { message:'meta: '+key+' '+new Date().toLocaleDateString('pt-BR'), content:b64 };
-  if (sha) body.sha = sha;
-  await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-    method:'PUT',
-    headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
-    body: JSON.stringify(body)
+// Upload de arquivo para Firebase Storage
+async function fbUploadFile(path, file) {
+  return new Promise(function(resolve, reject) {
+    var ref = _fbStorage.ref(path);
+    var task = ref.put(file);
+    task.on('state_changed',
+      function(snap) {
+        var pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+        ghStatus('⏳ Enviando... ' + pct + '%', 'info');
+      },
+      function(err) { reject(err); },
+      function() { resolve(task.snapshot); }
+    );
   });
 }
 
-// Lê metadados do GitHub (público, sem token)
-async function ghReadMeta(repo) {
-  var base = 'https://raw.githubusercontent.com/'+repo+'/main/data/';
-  var result = {};
-  for (var key of ['prod','cancel']) {
-    try {
-      var r = await fetch(base+'meta_'+key+'.json?t='+Date.now());
-      if (r.ok) result[key] = await r.json();
-    } catch(e){}
-  }
-  return result;
-}
-
-// Baixa XLSX do GitHub como File object (público, sem token)
-async function ghFetchXlsx(repo, path) {
-  var cfg = getGhConfig();
-  var url = 'https://raw.githubusercontent.com/'+repo+'/main/'+path+'?t='+Date.now();
-  var opts = cfg.token ? {headers:{'Authorization':'Bearer '+cfg.token}} : {};
-  var r = await fetch(url, opts);
-  if (!r.ok) throw new Error('Arquivo não encontrado no GitHub: '+path+' ('+r.status+')');
+// Download de arquivo do Firebase Storage como File object
+async function fbFetchXlsx(path) {
+  var ref = _fbStorage.ref(path);
+  var url = await ref.getDownloadURL();
+  var r = await fetch(url);
+  if (!r.ok) throw new Error('Arquivo não encontrado: ' + path);
   var blob = await r.blob();
-  return new File([blob], path.split('/').pop(), {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  var fname = path.split('/').pop();
+  return new File([blob], fname, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+// Salva metadados no Realtime Database
+async function fbSaveMeta(key, meta) {
+  await _fbDatabase.ref('portal/meta/' + key).set(Object.assign({}, meta, {ts: Date.now()}));
+}
+
+// Lê metadados do Realtime Database
+async function fbReadMeta() {
+  var snap = await _fbDatabase.ref('portal/meta').get();
+  return snap.exists() ? snap.val() : {};
+}
+
+// Verifica se arquivo existe no Storage
+async function fbFileExists(path) {
+  try { await _fbStorage.ref(path).getMetadata(); return true; } catch(e) { return false; }
 }
 
 // ── PUBLICAR PRODUTIVIDADE ──────────────────────────────────
-var _histPublishEnabled = false;  // checkbox state
-var _histDetectedMonth  = '';     // 'YYYY-MM' detectado no arquivo
-var _histManualMonth    = '';     // 'YYYY-MM' editado manualmente
+var _histPublishEnabled = false;
+var _histDetectedMonth  = '';
+var _histManualMonth    = '';
 
-// ── HISTÓRICO: detectar mês das datas dentro do XLSX ────────
-// Lê o arquivo no client-side sem subir; extrai a moda do mês
 async function detectMonthFromFile(file) {
   if (!file) return null;
   try {
     var buf = await file.arrayBuffer();
-    var wb  = XLSX.read(new Uint8Array(buf), { type:'array', cellDates:true });
+    var wb  = XLSX.read(new Uint8Array(buf), {type:'array', cellDates:true});
     var ws  = wb.Sheets[wb.SheetNames[0]];
-    var rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+    var rows = XLSX.utils.sheet_to_json(ws, {defval:''});
     var counts = {};
     rows.forEach(function(r) {
       var n = {};
@@ -4049,7 +3977,6 @@ async function detectMonthFromFile(file) {
       if (!raw) return;
       var d = raw instanceof Date ? raw : new Date(raw);
       if (isNaN(d.getTime())) {
-        // tenta formato dd/mm/yyyy
         var m = String(raw).match(/(\d{2})\/(\d{2})\/(\d{4})/);
         if (m) d = new Date(+m[3], +m[2]-1, +m[1]);
       }
@@ -4058,52 +3985,35 @@ async function detectMonthFromFile(file) {
       counts[key] = (counts[key]||0) + 1;
     });
     if (!Object.keys(counts).length) return null;
-    // retorna o mês mais frequente
     return Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; })[0];
   } catch(e) { return null; }
 }
 
-// ── HISTÓRICO: verificar se já existe no GitHub ─────────────
 async function checkHistConflict(yyyymm) {
   if (!yyyymm) return false;
-  var cfg = getGhConfig();
-  if (!cfg.token) return false;
-  try {
-    var r = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/data/prod_'+yyyymm+'.xlsx', {
-      headers:{'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'}
-    });
-    return r.ok;
-  } catch(e) { return false; }
+  return await fbFileExists('data/prod_' + yyyymm + '.xlsx');
 }
 
-// ── HISTÓRICO: atualizar pill e preview ─────────────────────
 async function updateHistPreview(yyyymm, isDetected) {
-  var pill     = document.getElementById('hist-pill');
-  var fnPrev   = document.getElementById('hist-filename-preview');
+  var pill = document.getElementById('hist-pill');
+  var fnPrev = document.getElementById('hist-filename-preview');
   var conflict = document.getElementById('hist-conflict-warn');
   var conflictName = document.getElementById('hist-conflict-name');
-  var monthInput   = document.getElementById('hist-month-input');
+  var monthInput = document.getElementById('hist-month-input');
   if (!pill) return;
-
   if (!yyyymm) {
-    pill.textContent = '⚠️ Não detectado';
-    pill.className   = 'hist-month-pill warn';
+    pill.textContent = '⚠️ Não detectado'; pill.className = 'hist-month-pill warn';
     if (fnPrev) fnPrev.textContent = 'prod_YYYY-MM.xlsx';
     if (conflict) conflict.classList.remove('visible');
     return;
   }
-
-  // format para exibição: "Jan/2026"
   var parts = yyyymm.split('-');
   var MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   var display = (MNAMES[+parts[1]] || parts[1]) + '/' + parts[0];
-
   pill.textContent = (isDetected ? '📅 ' : '✏️ ') + display;
-  pill.className   = 'hist-month-pill ' + (isDetected ? 'ok' : '');
+  pill.className = 'hist-month-pill ' + (isDetected ? 'ok' : '');
   if (fnPrev) fnPrev.textContent = 'prod_' + yyyymm + '.xlsx';
   if (monthInput && !monthInput.value) monthInput.value = yyyymm;
-
-  // verifica conflito
   var exists = await checkHistConflict(yyyymm);
   if (conflict && conflictName) {
     conflictName.textContent = 'prod_' + yyyymm + '.xlsx';
@@ -4111,31 +4021,25 @@ async function updateHistPreview(yyyymm, isDetected) {
   }
 }
 
-// ── HISTÓRICO: toggle checkbox ───────────────────────────────
 function toggleHistPublish(labelEl) {
   _histPublishEnabled = !_histPublishEnabled;
-  var chk     = document.getElementById('hist-toggle-chk');
+  var chk = document.getElementById('hist-toggle-chk');
   var preview = document.getElementById('hist-preview');
-  if (chk)     chk.checked = _histPublishEnabled;
+  if (chk) chk.checked = _histPublishEnabled;
   if (labelEl) labelEl.classList.toggle('active', _histPublishEnabled);
   if (preview) preview.classList.toggle('visible', _histPublishEnabled);
-  if (_histPublishEnabled && _histDetectedMonth) {
-    updateHistPreview(_histDetectedMonth, true);
-  }
+  if (_histPublishEnabled && _histDetectedMonth) updateHistPreview(_histDetectedMonth, true);
 }
 
-// chamado quando o admin edita o input[type=month] manualmente
 async function onHistMonthInput(val) {
   _histManualMonth = val || '';
-  var effective = _histManualMonth || _histDetectedMonth;
-  await updateHistPreview(effective, !_histManualMonth);
+  await updateHistPreview(_histManualMonth || _histDetectedMonth, !_histManualMonth);
 }
 
-// ── HISTÓRICO: publicar avulso ───────────────────────────────
 async function onStandaloneMonthInput(val) {
-  var btn      = document.getElementById('btn-hist-standalone');
+  var btn = document.getElementById('btn-hist-standalone');
   var conflict = document.getElementById('hist-standalone-conflict');
-  var cname    = document.getElementById('hist-standalone-conflict-name');
+  var cname = document.getElementById('hist-standalone-conflict-name');
   if (btn) btn.disabled = !val || !fileRefs['fp-prod'];
   if (!val || !conflict || !cname) return;
   var exists = await checkHistConflict(val);
@@ -4149,214 +4053,164 @@ async function publishStandaloneHistory() {
   if (!file) { showToast('Selecione o arquivo de Produtividade primeiro.', 'warn'); return; }
   var yyyymm = document.getElementById('hist-standalone-month').value;
   if (!yyyymm) { showToast('Selecione o mês de referência.', 'warn'); return; }
-
   var btn = document.getElementById('btn-hist-standalone');
   btn.disabled = true;
-  setSt('st-hist', '⏳ Salvando no histórico...', 'loading');
+  setSt('st-hist', '⏳ Salvando no Firebase...', 'loading');
   loadStart('Publicando Histórico…', 'prod_' + yyyymm + '.xlsx');
-
   try {
     var fname = 'prod_' + yyyymm + '.xlsx';
-    await ghUploadFile('data/' + fname, file,
-      'historico: ' + fname + ' · ' + new Date().toLocaleString('pt-BR'));
+    await fbUploadFile('data/' + fname, file);
     setSt('st-hist', '✅ prod_' + yyyymm + '.xlsx salvo!', 'ok');
     addLog('✅ Histórico salvo: data/' + fname, 'ok');
-    showToast('Salvo como "' + fname + '" no GitHub!', 'ok', { title: 'Histórico atualizado' });
-    // atualiza indicador de conflito
+    showToast('Salvo como "' + fname + '" no Firebase!', 'ok', {title:'Histórico atualizado'});
     var cname = document.getElementById('hist-standalone-conflict-name');
-    var cbox  = document.getElementById('hist-standalone-conflict');
+    var cbox = document.getElementById('hist-standalone-conflict');
     if (cname) cname.textContent = fname;
-    if (cbox)  cbox.classList.add('visible');
+    if (cbox) cbox.classList.add('visible');
   } catch(err) {
     setSt('st-hist', '❌ ' + err.message, 'err');
-    addLog('❌ Erro histórico: ' + err.message, 'err');
-    showToast(err.message, 'err', { title: 'Erro ao salvar no Histórico' });
-  } finally {
-    loadEnd();
-    btn.disabled = false;
-  }
+    showToast(err.message, 'err', {title:'Erro ao salvar no Histórico'});
+  } finally { loadEnd(); btn.disabled = false; }
 }
 
 async function publishProdData() {
   if (!isAdmin) { showLoginModal(); return; }
-  var _cfg = getGhConfig(); if (!_cfg.token || !_cfg.token.startsWith('ghp_')) { showTokenWarning(publishProdData); return; }
   var file = fileRefs['fp-prod'];
   if (!file) return;
   var btn = document.getElementById('btn-prod');
   btn.disabled = true;
-  setSt('st-prod', '⏳ Enviando ao GitHub...', 'loading');
-  addLog('Enviando Produtividade ao GitHub...', 'info');
+  setSt('st-prod', '⏳ Enviando ao Firebase...', 'loading');
+  addLog('Enviando Produtividade ao Firebase...', 'info');
   loadStart('Publicando Produtividade…', file.name);
   try {
-    await ghUploadFile('data/prod.xlsx', file, 'dados: produtividade '+new Date().toLocaleString('pt-BR'));
-    await ghSaveMeta('prod', {name:file.name, updated:new Date().toLocaleString('pt-BR'), ts:Date.now()});
+    await fbUploadFile('data/prod.xlsx', file);
+    await fbSaveMeta('prod', {name: file.name, updated: new Date().toLocaleString('pt-BR')});
     setSt('st-prod', '✅ Publicado! Todos os usuários verão os novos dados.', 'ok');
     saveLastUpdate('prod', file.name);
-    addLog('✅ Produtividade publicada: '+file.name, 'ok');
-    showToast('Arquivo "' + file.name + '" publicado com sucesso!', 'ok', { title: 'Produtividade publicada' });
+    addLog('✅ Produtividade publicada: ' + file.name, 'ok');
+    showToast('Arquivo "' + file.name + '" publicado com sucesso!', 'ok', {title:'Produtividade publicada'});
     handleUpload({files:[file]}, true);
     await updateBanner();
-
-    // ── Publicar no histórico se a opção estiver ativa ────────
     if (_histPublishEnabled) {
       var yyyymm = _histManualMonth || _histDetectedMonth;
-      if (!yyyymm) {
-        // tenta detectar agora se ainda não foi
-        yyyymm = await detectMonthFromFile(file);
-        _histDetectedMonth = yyyymm || '';
-      }
+      if (!yyyymm) { yyyymm = await detectMonthFromFile(file); _histDetectedMonth = yyyymm || ''; }
       if (yyyymm) {
         var fname = 'prod_' + yyyymm + '.xlsx';
         loadStart('Salvando Histórico…', fname);
         try {
-          await ghUploadFile('data/'+fname, file,
-            'historico: '+fname+' · '+new Date().toLocaleString('pt-BR'));
-          addLog('✅ Histórico salvo: data/'+fname, 'ok');
-          showToast('Histórico "' + fname + '" salvo automaticamente!', 'ok',
-            { title: 'Histórico atualizado' });
-          // Atualiza conflito e pill
-          var cname = document.getElementById('hist-conflict-name');
-          var cbox  = document.getElementById('hist-conflict-warn');
-          if (cname) cname.textContent = fname;
-          if (cbox)  cbox.classList.add('visible');
+          await fbUploadFile('data/' + fname, file);
+          addLog('✅ Histórico salvo: data/' + fname, 'ok');
+          showToast('Histórico "' + fname + '" salvo automaticamente!', 'ok', {title:'Histórico atualizado'});
         } catch(he) {
-          addLog('⚠️ Histórico não salvo: '+he.message, 'err');
-          showToast('Produtividade publicada, mas histórico falhou:\n'+he.message,
-            'warn', { title: 'Aviso' });
+          addLog('⚠️ Histórico não salvo: ' + he.message, 'err');
+          showToast('Produtividade publicada, mas histórico falhou:\n' + he.message, 'warn', {title:'Aviso'});
         } finally { loadEnd(); }
       } else {
-        showToast('Não foi possível detectar o mês do arquivo. Salve o histórico manualmente.', 'warn',
-          { title: 'Histórico não salvo' });
+        showToast('Não foi possível detectar o mês. Salve o histórico manualmente.', 'warn', {title:'Histórico não salvo'});
       }
     }
   } catch(err) {
-    setSt('st-prod', '❌ '+err.message, 'err');
-    addLog('❌ Erro Produtividade: '+err.message, 'err');
-    showToast(err.message, 'err', { title: 'Erro ao publicar Produtividade' });
-  } finally {
-    loadEnd();
-    btn.disabled = false;
-  }
+    setSt('st-prod', '❌ ' + err.message, 'err');
+    addLog('❌ Erro Produtividade: ' + err.message, 'err');
+    showToast(err.message, 'err', {title:'Erro ao publicar Produtividade'});
+  } finally { loadEnd(); btn.disabled = false; }
 }
 
-// ── PUBLICAR CANCELAMENTOS ──────────────────────────────────
 async function publishCancelData() {
-  var _cfg2 = getGhConfig(); if (!_cfg2.token || !_cfg2.token.startsWith('ghp_')) { showTokenWarning(publishCancelData); return; }
   if (!isAdmin) { showLoginModal(); return; }
   var f1 = fileRefs['fp-c1'], f2 = fileRefs['fp-c2'];
   if (!f1||!f2) return;
   var btn = document.getElementById('btn-cancel');
   btn.disabled = true;
-  setSt('st-cancel', '⏳ Enviando ao GitHub...', 'loading');
-  addLog('Enviando Cancelamentos ao GitHub...', 'info');
+  setSt('st-cancel', '⏳ Enviando ao Firebase...', 'loading');
+  addLog('Enviando Cancelamentos ao Firebase...', 'info');
   loadStart('Publicando Cancelamentos…', f1.name + ' + ' + f2.name);
   try {
-    await ghUploadFile('data/cancel_prod.xlsx', f1, 'dados: cancel-producao '+new Date().toLocaleString('pt-BR'));
-    await ghUploadFile('data/cancel_rupt.xlsx', f2, 'dados: cancel-ruptura '+new Date().toLocaleString('pt-BR'));
-    await ghSaveMeta('cancel', {name1:f1.name, name2:f2.name, updated:new Date().toLocaleString('pt-BR'), ts:Date.now()});
+    await fbUploadFile('data/cancel_prod.xlsx', f1);
+    await fbUploadFile('data/cancel_rupt.xlsx', f2);
+    await fbSaveMeta('cancel', {name1: f1.name, name2: f2.name, updated: new Date().toLocaleString('pt-BR')});
     setSt('st-cancel', '✅ Publicado! Todos os usuários verão os novos dados.', 'ok');
-    saveLastUpdate('cancel', f1.name+' + '+f2.name);
-    addLog('✅ Cancelamentos publicados: '+f1.name+' + '+f2.name, 'ok');
-    showToast('Arquivos de cancelamentos publicados com sucesso!', 'ok', { title: 'Cancelamentos publicados' });
+    saveLastUpdate('cancel', f1.name + ' + ' + f2.name);
+    addLog('✅ Cancelamentos publicados: ' + f1.name + ' + ' + f2.name, 'ok');
+    showToast('Arquivos de cancelamentos publicados com sucesso!', 'ok', {title:'Cancelamentos publicados'});
     window.prodFile = f1; window.ruptFile = f2;
-    var lp=document.getElementById('lblProdText'), lr=document.getElementById('lblRuptText');
-    if(lp) lp.textContent='✔ '+f1.name;
-    if(lr) lr.textContent='✔ '+f2.name;
-    var lbP=document.getElementById('lblProd'), lbR=document.getElementById('lblRupt');
+    var lp = document.getElementById('lblProdText'), lr = document.getElementById('lblRuptText');
+    if(lp) lp.textContent = '✔ ' + f1.name;
+    if(lr) lr.textContent = '✔ ' + f2.name;
+    var lbP = document.getElementById('lblProd'), lbR = document.getElementById('lblRupt');
     if(lbP) lbP.classList.add('loaded');
     if(lbR) lbR.classList.add('loaded');
-    var bu=document.getElementById('btnUpdate');
-    if(bu){bu.disabled=false; bu.style.pointerEvents=''; bu.style.opacity=''; setTimeout(function(){ processFiles(true); },300);}
+    var bu = document.getElementById('btnUpdate');
+    if(bu){ bu.disabled=false; bu.style.pointerEvents=''; bu.style.opacity=''; setTimeout(function(){ processFiles(true); }, 300); }
     await updateBanner();
   } catch(err) {
-    setSt('st-cancel', '❌ '+err.message, 'err');
-    addLog('❌ Erro Cancelamentos: '+err.message, 'err');
-    showToast(err.message, 'err', { title: 'Erro ao publicar Cancelamentos' });
-  } finally {
-    loadEnd();
-    btn.disabled = false;
-  }
+    setSt('st-cancel', '❌ ' + err.message, 'err');
+    addLog('❌ Erro Cancelamentos: ' + err.message, 'err');
+    showToast(err.message, 'err', {title:'Erro ao publicar Cancelamentos'});
+  } finally { loadEnd(); btn.disabled = false; }
 }
 
-// ── AUTO-CARREGAR dados do GitHub ao abrir o site ──────────
+// ── AUTO-CARREGAR dados do Firebase ao abrir o site ──────────
 async function autoLoad() {
-  var repo = (localStorage.getItem('gh_repo')||'digital-kpis/portal-assai').trim();
-  var ghToken = getGhConfig().token;
-  loadStart('Sincronizando dados…', 'Verificando atualizações no GitHub');
+  loadStart('Sincronizando dados…', 'Verificando Firebase');
   try {
-    var meta = await ghReadMeta(repo);
+    var meta = await fbReadMeta();
     if (!meta.prod && !meta.cancel) {
       var none = document.getElementById('update-none');
-      if(none){ none.textContent='🕐 Nenhuma atualização publicada ainda.'; }
+      if(none) none.textContent = '🕐 Nenhuma atualização publicada ainda.';
       return;
     }
     if (meta.prod) {
       try {
         loadStart('Carregando Produtividade…', meta.prod.name || 'prod.xlsx');
-        var pf = await ghFetchXlsx(repo, 'data/prod.xlsx');
+        var pf = await fbFetchXlsx('data/prod.xlsx');
         handleUpload({files:[pf]}, true);
-        addLog('Auto-carregado: Produtividade ('+meta.prod.updated+')', 'ok');
-      } catch(e){ addLog('Aviso prod: '+e.message, 'info'); }
+        addLog('Auto-carregado: Produtividade (' + meta.prod.updated + ')', 'ok');
+      } catch(e) { addLog('Aviso prod: ' + e.message, 'info'); }
       finally { loadEnd(); }
     }
     if (meta.cancel) {
       try {
-        loadStart('Carregando Cancelamentos…', (meta.cancel.name1||'cancel_prod.xlsx'));
-        var cf1 = await ghFetchXlsx(repo, 'data/cancel_prod.xlsx');
-        var cf2 = await ghFetchXlsx(repo, 'data/cancel_rupt.xlsx');
-        window.prodFile=cf1; window.ruptFile=cf2;
-        var lp=document.getElementById('lblProdText'), lr=document.getElementById('lblRuptText');
-        if(lp) lp.textContent='✔ '+(meta.cancel.name1||cf1.name);
-        if(lr) lr.textContent='✔ '+(meta.cancel.name2||cf2.name);
-        var lbP=document.getElementById('lblProd'), lbR=document.getElementById('lblRupt');
+        loadStart('Carregando Cancelamentos…', meta.cancel.name1 || 'cancel_prod.xlsx');
+        var cf1 = await fbFetchXlsx('data/cancel_prod.xlsx');
+        var cf2 = await fbFetchXlsx('data/cancel_rupt.xlsx');
+        window.prodFile = cf1; window.ruptFile = cf2;
+        var lp = document.getElementById('lblProdText'), lr = document.getElementById('lblRuptText');
+        if(lp) lp.textContent = '✔ ' + (meta.cancel.name1 || cf1.name);
+        if(lr) lr.textContent = '✔ ' + (meta.cancel.name2 || cf2.name);
+        var lbP = document.getElementById('lblProd'), lbR = document.getElementById('lblRupt');
         if(lbP) lbP.classList.add('loaded');
         if(lbR) lbR.classList.add('loaded');
-        var bu=document.getElementById('btnUpdate');
+        var bu = document.getElementById('btnUpdate');
         if(bu){ bu.disabled=false; bu.style.pointerEvents=''; bu.style.opacity=''; }
-        setTimeout(function(){ processFiles(true); },400);
-        addLog('Auto-carregado: Cancelamentos ('+meta.cancel.updated+')', 'ok');
-      } catch(e){ addLog('Aviso cancel: '+e.message, 'info'); }
+        setTimeout(function(){ processFiles(true); }, 400);
+        addLog('Auto-carregado: Cancelamentos (' + meta.cancel.updated + ')', 'ok');
+      } catch(e) { addLog('Aviso cancel: ' + e.message, 'info'); }
       finally { loadEnd(); }
     }
     await updateBanner(meta);
-  } finally {
-    loadEnd(); // o loadStart inicial
-  }
+  } finally { loadEnd(); }
 }
 
-// ── BANNER DE ÚLTIMA ATUALIZAÇÃO ────────────────────────────
 async function updateBanner(metaOverride) {
-  var repo = (localStorage.getItem('gh_repo')||'digital-kpis/portal-assai').trim();
-  var meta = metaOverride || (await ghReadMeta(repo));
-
+  var meta = metaOverride || (await fbReadMeta());
   var rowProd   = document.getElementById('update-prod-row');
   var rowCancel = document.getElementById('update-cancel-row');
   var txtProd   = document.getElementById('update-prod-text');
   var txtCancel = document.getElementById('update-cancel-text');
   var none      = document.getElementById('update-none');
-
   var hasProd   = !!(meta.prod);
   var hasCancel = !!(meta.cancel);
-
   if (rowProd)   rowProd.style.display   = hasProd   ? 'flex' : 'none';
   if (rowCancel) rowCancel.style.display = hasCancel ? 'flex' : 'none';
   if (none)      none.style.display      = (!hasProd && !hasCancel) ? 'block' : 'none';
-
   if (hasProd && txtProd)
     txtProd.textContent = meta.prod.updated + '  ·  ' + (meta.prod.name||'');
   if (hasCancel && txtCancel)
     txtCancel.textContent = meta.cancel.updated + '  ·  ' + (meta.cancel.name1||'') + ' + ' + (meta.cancel.name2||'');
 }
 
-// ── CARREGAR TOKEN NO FORMULÁRIO ─────────────────────────────
-function loadGhForm() {
-  var t=localStorage.getItem('gh_token')||'';
-  var r=localStorage.getItem('gh_repo')||'digital-kpis/portal-assai';
-  var te=document.getElementById('gh-token'), re=document.getElementById('gh-repo');
-  if(te&&t) te.value=t;
-  if(re) re.value=r;
-  if(t) ghStatus('✅ Token configurado. Pronto para publicar.','ok');
-}
+// ── ZERAR DADOS (Firebase) ────────────────────────────────
 
 // ── ZERAR TODOS OS DADOS ─────────────────────────────────────
 function confirmReset() {
@@ -4364,7 +4218,7 @@ function confirmReset() {
   showConfirm({
     icon: '🗑️',
     title: 'Zerar todos os dados?',
-    msg: 'Esta ação vai:\n• Remover os arquivos do GitHub\n• Limpar o cache local\n• Todos os usuários verão os dashboards sem dados\n\nEsta ação não pode ser desfeita.',
+    msg: 'Esta ação vai:\n• Remover os arquivos do Firebase\n• Todos os usuários verão os dashboards sem dados\n\nEsta ação não pode ser desfeita.',
     okLabel: 'Sim, remover tudo',
     cancelLabel: 'Cancelar',
     onOk: resetAllData
@@ -4372,63 +4226,20 @@ function confirmReset() {
 }
 
 async function resetAllData() {
-  var cfg = getGhConfig();
   var status = document.getElementById('reset-status');
-  if (status) { status.textContent = '⏳ Removendo dados do GitHub...'; status.style.color = '#38f0d4'; }
-
-  var paths = ['data/prod.xlsx','data/cancel_prod.xlsx','data/cancel_rupt.xlsx','data/meta_prod.json','data/meta_cancel.json'];
+  if (status) { status.textContent = '⏳ Removendo dados do Firebase...'; status.style.color = '#38f0d4'; }
+  var paths = ['data/prod.xlsx','data/cancel_prod.xlsx','data/cancel_rupt.xlsx'];
   var errors = [];
-  loadStart('Removendo dados…', 'Aguarde, isso pode levar alguns segundos');
-
+  loadStart('Removendo dados…', 'Aguarde...');
   for (var path of paths) {
     try {
-      loadStart('Removendo ' + path.split('/').pop() + '…');
-      var r = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-        headers: {'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json'}
-      });
-      if (!r.ok) { loadEnd(); continue; }
-      var file = await r.json();
-      var del = await fetch('https://api.github.com/repos/'+cfg.repo+'/contents/'+path, {
-        method: 'DELETE',
-        headers: {'Authorization':'Bearer '+cfg.token,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
-        body: JSON.stringify({ message: 'reset: remover dados '+new Date().toLocaleString('pt-BR'), sha: file.sha })
-      });
-      if (!del.ok) { var e = await del.json(); errors.push(path+': '+e.message); }
-    } catch(e) { errors.push(path+': '+e.message); }
-    finally { loadEnd(); }
+      await _fbStorage.ref(path).delete();
+    } catch(e) { /* arquivo pode não existir */ }
   }
-
-  loadEnd(); // o loadStart inicial
-
-  // Limpa apenas os caches locais de atualização (mantém token e repo)
-  ['lastupdate_prod','lastupdate_cancel'].forEach(function(k){
-    try { localStorage.removeItem(k); } catch(e) {}
-  });
-
-  if (errors.length === 0) {
-    if (status) { status.textContent = '✅ Todos os dados foram removidos com sucesso.'; status.style.color = '#b8ff57'; }
-    addLog('✅ Reset completo: todos os dados removidos do GitHub', 'ok');
-    showToast('Todos os dados foram removidos do GitHub.', 'ok', { title: 'Reset concluído' });
-    window.prodFile = null; window.ruptFile = null;
-    var lp=document.getElementById('lblProdText'), lr=document.getElementById('lblRuptText');
-    var lbP=document.getElementById('lblProd'), lbR=document.getElementById('lblRupt');
-    if(lp) lp.textContent='Produção (PRODU)';
-    if(lr) lr.textContent='Ruptura (RUPTURA)';
-    if(lbP) lbP.classList.remove('loaded');
-    if(lbR) lbR.classList.remove('loaded');
-    var bu=document.getElementById('btnUpdate');
-    if(bu) bu.disabled=true;
-    var rowProd = document.getElementById('update-prod-row');
-    var rowCancel = document.getElementById('update-cancel-row');
-    var none = document.getElementById('update-none');
-    if (rowProd) rowProd.style.display = 'none';
-    if (rowCancel) rowCancel.style.display = 'none';
-    if (none) { none.textContent = '🕐 Nenhuma atualização publicada ainda.'; none.style.display = 'block'; }
-  } else {
-    if (status) { status.textContent = '⚠️ Alguns arquivos não puderam ser removidos: '+errors.join(', '); status.style.color = '#ffc947'; }
-    addLog('⚠️ Reset parcial. Erros: '+errors.join('; '), 'err');
-    showToast('Alguns arquivos não puderam ser removidos:\n' + errors.join(', '), 'warn', { title: 'Reset parcial' });
-  }
+  try { await _fbDatabase.ref('portal/meta').remove(); } catch(e){}
+  if (status) { status.textContent = '✅ Dados removidos com sucesso.'; status.style.color = '#b8ff57'; }
+  addLog('Dados removidos do Firebase', 'ok');
+  loadEnd();
 }
 
 // ── LOG ──────────────────────────────────────────────────────
@@ -4548,51 +4359,37 @@ document.addEventListener('DOMContentLoaded', function() {
 var HIST_MONTH_NAMES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 async function loadHistorico() {
-  var grid  = document.getElementById('hist-grid');
+  var grid = document.getElementById('hist-grid');
   var empty = document.getElementById('hist-empty');
   if (!grid) return;
-  grid.innerHTML = '<div style="color:#5a6480;font-size:13px;padding:20px">🔄 Buscando arquivos no GitHub...</div>';
-
-  var repo = (localStorage.getItem('gh_repo') || 'digital-kpis/portal-assai').trim();
-  loadStart('Carregando Histórico…', repo);
+  grid.innerHTML = '<div style="color:#5a6480;font-size:13px;padding:20px">🔄 Buscando arquivos no Firebase...</div>';
+  loadStart('Carregando Histórico…', 'Firebase Storage');
   try {
-    var url = 'https://api.github.com/repos/' + repo + '/contents/data';
-    var res = await fetch(url);
-    if (!res.ok) throw new Error('Não foi possível listar arquivos (status ' + res.status + '). Verifique se a pasta "data/" existe no repositório.');
-    var files = await res.json();
-
-    var prodFiles = files
-      .filter(function(f) { return /^prod_\d{4}-\d{2}\.xlsx$/i.test(f.name); })
-      .sort(function(a,b) { return b.name.localeCompare(a.name); });
-
-    if (!prodFiles.length) {
+    var ref = _fbStorage.ref('data');
+    var result = await ref.listAll();
+    var prods = result.items.filter(function(i){ return /^prod_\d{4}-\d{2}\.xlsx$/i.test(i.name); })
+                            .sort(function(a,b){ return b.name.localeCompare(a.name); });
+    if (!prods.length) {
       grid.innerHTML = '';
       if (empty) empty.style.display = 'block';
-      loadEnd();
       return;
     }
-
     if (empty) empty.style.display = 'none';
-    grid.innerHTML = prodFiles.map(function(f) {
-      var match   = f.name.match(/prod_(\d{4})-(\d{2})\.xlsx/i);
-      var ano     = match ? match[1] : '?';
-      var mes     = match ? parseInt(match[2]) : 0;
-      var nomeMes = HIST_MONTH_NAMES[mes] || String(mes);
-      return '<div style="background:#0e1118;border:1px solid #1f2738;border-radius:14px;padding:20px;transition:border-color .2s" onmouseover="this.style.borderColor=\'#2a3448\'" onmouseout="this.style.borderColor=\'#1f2738\'">' +
-        '<div style="font-size:28px;margin-bottom:10px">📊</div>' +
-        '<div style="font-weight:800;font-size:16px;margin-bottom:2px;color:#dde3f0">' + nomeMes + ' ' + ano + '</div>' +
-        '<div style="font-size:11px;color:#5a6480;font-family:monospace;margin-bottom:14px">' + f.name + '</div>' +
-        '<button onclick="loadHistFile(\'' + f.download_url + '\',\'' + f.name + '\')" ' +
-          'style="background:rgba(184,255,87,.1);border:1px solid rgba(184,255,87,.25);color:#b8ff57;font-size:11px;padding:6px 14px;border-radius:7px;cursor:pointer;font-family:\'Outfit\',sans-serif;font-weight:600">' +
-          '↗ Carregar dados' +
-        '</button>' +
-      '</div>';
-    }).join('');
-  } catch(err) {
-    grid.innerHTML = '<div style="color:#ef4444;font-size:13px;padding:20px">⚠️ ' + err.message + '</div>';
-  } finally {
-    loadEnd();
-  }
+    grid.innerHTML = '';
+    prods.forEach(function(item) {
+      var yyyymm = item.name.replace('prod_','').replace('.xlsx','');
+      var parts = yyyymm.split('-');
+      var MNAMES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      var label = (MNAMES[+parts[1]] || parts[1]) + ' ' + parts[0];
+      var card = document.createElement('div');
+      card.className = 'hist-card';
+      card.innerHTML = '<div class="hist-card-month">'+label+'</div><div class="hist-card-file">'+item.name+'</div>';
+      card.onclick = function(){ loadHistMonth(item, yyyymm); };
+      grid.appendChild(card);
+    });
+  } catch(e) {
+    grid.innerHTML = '<div style="color:#ef4444;font-size:13px;padding:20px">❌ Erro: ' + e.message + '</div>';
+  } finally { loadEnd(); }
 }
 
 async function loadHistFile(url, nome) {
@@ -4662,27 +4459,37 @@ async function initRanking() {
   var chips = document.getElementById('rank-chips');
   if (!chips) return;
   chips.innerHTML = '<div style="color:#5a6480;font-size:12px;padding:8px 0">🔄 Carregando meses...</div>';
-  var repo = (localStorage.getItem('gh_repo') || 'digital-kpis/portal-assai').trim();
-  loadStart('Carregando Ranking…', 'Buscando meses disponíveis');
+  loadStart('Carregando Ranking…', 'Firebase Storage');
   try {
-    var res   = await fetch('https://api.github.com/repos/' + repo + '/contents/data');
-    if (!res.ok) throw new Error('status ' + res.status);
-    var files = await res.json();
-    var prods = files.filter(function(f){ return /^prod_\d{4}-\d{2}\.xlsx$/i.test(f.name); })
-                     .sort(function(a,b){ return b.name.localeCompare(a.name); });
-    if (!prods.length) { chips.innerHTML = '<div style="color:#5a6480;font-size:12px">Nenhum arquivo prod_YYYY-MM.xlsx na pasta data/.</div>'; return; }
-    prods.forEach(function(f){ rankFilesCache[f.name] = f.download_url; });
-    rankSelectedMonths = [];
-    chips.innerHTML = prods.map(function(f) {
-      var m = f.name.match(/prod_(\d{4})-(\d{2})\.xlsx/i);
-      var label = m ? (RANK_MONTH_NAMES[parseInt(m[2])] + '/' + m[1]) : f.name;
-      return '<div class="rank-month-chip" data-file="' + f.name + '" onclick="toggleRankMonth(this,\'' + f.name + '\')">' + label + '</div>';
-    }).join('');
+    var ref = _fbStorage.ref('data');
+    var result = await ref.listAll();
+    var prods = result.items.filter(function(f){ return /^prod_\d{4}-\d{2}\.xlsx$/i.test(f.name); })
+                            .sort(function(a,b){ return b.name.localeCompare(a.name); });
+    chips.innerHTML = '';
+    if (!prods.length) {
+      chips.innerHTML = '<div style="color:#5a6480;font-size:12px">Nenhum mês disponível</div>';
+      loadEnd(); return;
+    }
+    prods.forEach(function(item, i) {
+      var yyyymm = item.name.replace('prod_','').replace('.xlsx','');
+      var parts = yyyymm.split('-');
+      var MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      var label = (MNAMES[+parts[1]]||parts[1])+'/'+parts[0];
+      var btn = document.createElement('button');
+      btn.className = 'rank-chip' + (i===0?' on':'');
+      btn.textContent = label;
+      btn.dataset.yyyymm = yyyymm;
+      btn.onclick = function(){
+        document.querySelectorAll('.rank-chip').forEach(function(c){ c.classList.remove('on'); });
+        btn.classList.add('on');
+        loadRankingMonth(item, yyyymm);
+      };
+      chips.appendChild(btn);
+    });
+    if (prods.length) loadRankingMonth(prods[0], prods[0].name.replace('prod_','').replace('.xlsx',''));
   } catch(e) {
-    chips.innerHTML = '<div style="color:#ef4444;font-size:12px">⚠️ ' + e.message + '</div>';
-  } finally {
-    loadEnd();
-  }
+    chips.innerHTML = '<div style="color:#ef4444;font-size:12px">❌ ' + e.message + '</div>';
+  } finally { loadEnd(); }
 }
 
 function toggleRankMonth(el, fname) {
@@ -4888,96 +4695,11 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
 }
 
-// ══ TOKEN WARNING MODAL ══════════════════════════════════════
-var _pendingPublishFn = null;
 
-function showTokenWarning(onSave) {
-  _pendingPublishFn = onSave || null;
-  var modal = document.getElementById('tokenWarningModal');
-  modal.style.display = 'flex';
-  var inp = document.getElementById('quickTokenInput');
-  if (inp) { inp.value = ''; inp.focus(); }
-  document.getElementById('quickTokenStatus').textContent = '';
-}
-
-function closeTokenWarning() {
-  document.getElementById('tokenWarningModal').style.display = 'none';
-  _pendingPublishFn = null;
-}
-
-async function saveQuickToken() {
-  var inp = document.getElementById('quickTokenInput');
-  var st = document.getElementById('quickTokenStatus');
-  var t = (inp.value||'').trim();
-  if (!t || !t.startsWith('ghp_')) {
-    st.textContent = '⚠️ Token inválido. Deve começar com ghp_';
-    st.style.color = '#ef4444';
-    return;
-  }
-  st.textContent = '⏳ Testando token...';
-  st.style.color = '#38f0d4';
-  try {
-    var r = await fetch('https://api.github.com/repos/digital-kpis/portal-assai', {
-      headers: {'Authorization': 'Bearer ' + t, 'Accept': 'application/vnd.github+json'}
-    });
-    if (!r.ok) throw new Error('Token inválido ou sem permissão ('+r.status+')');
-    localStorage.setItem('gh_token', t);
-    localStorage.setItem('gh_repo', 'digital-kpis/portal-assai');
-    ghStatus('✅ Token salvo com sucesso!', 'ok');
-    prefillGhFields();
-    st.textContent = '✅ Token válido! Publicando...';
-    st.style.color = '#b8ff57';
-    setTimeout(function(){
-      closeTokenWarning();
-      if (_pendingPublishFn) _pendingPublishFn();
-    }, 800);
-  } catch(e) {
-    st.textContent = '❌ ' + e.message;
-    st.style.color = '#ef4444';
-  }
-}
-
-function requireToken(fn) {
-  var cfg = getGhConfig();
-  if (cfg.token && cfg.token.startsWith('ghp_')) { fn(); }
-  else { showTokenWarning(fn); }
-}
 
 </script>
 
 
 
-<!-- ══ MODAL: TOKEN NÃO CONFIGURADO ══════════════════════════ -->
-<div id="tokenWarningModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#13161f;border:1.5px solid #ef4444;border-radius:18px;width:100%;max-width:480px;padding:32px;font-family:'Outfit',sans-serif">
-    <div style="font-size:36px;text-align:center;margin-bottom:12px">🔑</div>
-    <div style="font-size:18px;font-weight:800;color:#fff;text-align:center;margin-bottom:8px">Token GitHub não configurado</div>
-    <div style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:24px;line-height:1.6">
-      Para publicar arquivos no GitHub, você precisa configurar o token de acesso uma vez neste navegador.
-    </div>
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600;letter-spacing:.05em">COLE O TOKEN GITHUB ABAIXO:</div>
-      <input id="quickTokenInput" type="password" placeholder="ghp_..." 
-        style="width:100%;background:#1e2330;border:1px solid #334155;border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-family:'JetBrains Mono',monospace;box-sizing:border-box;outline:none">
-    </div>
-    <div id="quickTokenStatus" style="font-size:12px;min-height:18px;margin-bottom:16px;text-align:center;font-family:'JetBrains Mono',monospace"></div>
-    <div style="display:flex;gap:10px">
-      <button onclick="saveQuickToken()" 
-        style="flex:1;background:#38f0d4;color:#07090f;border:none;border-radius:10px;padding:11px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">
-        ✅ Salvar e Publicar
-      </button>
-      <button onclick="closeTokenWarning()" 
-        style="background:#1e2330;color:#94a3b8;border:1px solid #334155;border-radius:10px;padding:11px 16px;font-size:13px;cursor:pointer;font-family:'Outfit',sans-serif">
-        Cancelar
-      </button>
-    </div>
-    <div style="margin-top:16px;padding:12px;background:#1e2330;border-radius:10px;font-size:11px;color:#64748b;line-height:1.7">
-      <strong style="color:#94a3b8">Como gerar o token:</strong><br>
-      1. Acesse <span style="color:#38f0d4">github.com/settings/tokens/new</span><br>
-      2. Marque a permissão <strong style="color:#94a3b8">repo</strong><br>
-      3. Clique em <strong style="color:#94a3b8">Generate token</strong> e cole acima
-    </div>
-  </div>
-</div>
 </body>
 </html>
