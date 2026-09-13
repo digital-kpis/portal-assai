@@ -4176,8 +4176,18 @@ async function publishCancelData() {
 // ── AUTO-CARREGAR dados do Firebase ao abrir o site ──────────
 async function autoLoad() {
   loadStart('Sincronizando dados…', 'Verificando Firebase');
+  var meta;
   try {
-    var meta = await fbReadMeta();
+    meta = await fbReadMeta();
+  } catch(e) {
+    loadEnd();
+    addLog('❌ Falha ao conectar no Firebase: ' + e.message, 'err');
+    showToast('Não foi possível carregar os dados salvos (' + e.message + '). Verifique sua conexão e recarregue a página.', 'err', {title:'Erro ao sincronizar'});
+    var none0 = document.getElementById('update-none');
+    if(none0) none0.textContent = '⚠️ Erro ao verificar dados salvos: ' + e.message;
+    return;
+  }
+  try {
     if (!meta.prod && !meta.cancel) {
       var none = document.getElementById('update-none');
       if(none) none.textContent = '🕐 Nenhuma atualização publicada ainda.';
@@ -4189,7 +4199,10 @@ async function autoLoad() {
         var pf = await fbFetchXlsx('data/prod.xlsx');
         handleUpload({files:[pf]}, true);
         addLog('Auto-carregado: Produtividade (' + meta.prod.updated + ')', 'ok');
-      } catch(e) { addLog('Aviso prod: ' + e.message, 'info'); }
+      } catch(e) {
+        addLog('❌ Falha ao carregar Produtividade: ' + e.message, 'err');
+        showToast('Falha ao carregar Produtividade salva: ' + e.message, 'err', {title:'Erro ao carregar'});
+      }
       finally { loadEnd(); }
     }
     if (meta.cancel) {
@@ -4208,7 +4221,10 @@ async function autoLoad() {
         if(bu){ bu.disabled=false; bu.style.pointerEvents=''; bu.style.opacity=''; }
         setTimeout(function(){ processFiles(true); }, 400);
         addLog('Auto-carregado: Cancelamentos (' + meta.cancel.updated + ')', 'ok');
-      } catch(e) { addLog('Aviso cancel: ' + e.message, 'info'); }
+      } catch(e) {
+        addLog('❌ Falha ao carregar Cancelamentos: ' + e.message, 'err');
+        showToast('Falha ao carregar Cancelamentos salvos: ' + e.message, 'err', {title:'Erro ao carregar'});
+      }
       finally { loadEnd(); }
     }
     await updateBanner(meta);
@@ -4280,7 +4296,10 @@ lockUploads();
 switchTab('home');
 renderLastUpdate();
 loadGhForm();
-autoLoad().catch(function(e){console.log('autoLoad:',e);});
+autoLoad().catch(function(e){
+  console.log('autoLoad:', e);
+  try{ showToast('Erro inesperado ao carregar dados: ' + e.message, 'err', {title:'Erro'}); }catch(_){}
+});
 
 // ════════════════════════════════════════════════════
 // FASE 1 — NOVAS FUNCIONALIDADES
