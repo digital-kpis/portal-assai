@@ -4174,11 +4174,18 @@ async function publishCancelData() {
 }
 
 // ── AUTO-CARREGAR dados do Firebase ao abrir o site ──────────
+function comTimeout(promise, ms, mensagem) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(mensagem || 'tempo esgotado')), ms))
+  ]);
+}
+
 async function autoLoad() {
   loadStart('Sincronizando dados…', 'Verificando Firebase');
   var meta;
   try {
-    meta = await fbReadMeta();
+    meta = await comTimeout(fbReadMeta(), 12000, 'Sem resposta do banco de dados em 12s (conexão bloqueada ou muito lenta)');
   } catch(e) {
     loadEnd();
     addLog('❌ Falha ao conectar no Firebase: ' + e.message, 'err');
@@ -4196,7 +4203,7 @@ async function autoLoad() {
     if (meta.prod) {
       try {
         loadStart('Carregando Produtividade…', meta.prod.name || 'prod.xlsx');
-        var pf = await fbFetchXlsx('data/prod.xlsx');
+        var pf = await comTimeout(fbFetchXlsx('data/prod.xlsx'), 20000, 'Sem resposta ao baixar o arquivo em 20s');
         handleUpload({files:[pf]}, true);
         addLog('Auto-carregado: Produtividade (' + meta.prod.updated + ')', 'ok');
       } catch(e) {
@@ -4208,8 +4215,8 @@ async function autoLoad() {
     if (meta.cancel) {
       try {
         loadStart('Carregando Cancelamentos…', meta.cancel.name1 || 'cancel_prod.xlsx');
-        var cf1 = await fbFetchXlsx('data/cancel_prod.xlsx');
-        var cf2 = await fbFetchXlsx('data/cancel_rupt.xlsx');
+        var cf1 = await comTimeout(fbFetchXlsx('data/cancel_prod.xlsx'), 20000, 'Sem resposta ao baixar o arquivo em 20s');
+        var cf2 = await comTimeout(fbFetchXlsx('data/cancel_rupt.xlsx'), 20000, 'Sem resposta ao baixar o arquivo em 20s');
         window.prodFile = cf1; window.ruptFile = cf2;
         var lp = document.getElementById('lblProdText'), lr = document.getElementById('lblRuptText');
         if(lp) lp.textContent = '✔ ' + (meta.cancel.name1 || cf1.name);
