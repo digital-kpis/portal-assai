@@ -3921,31 +3921,51 @@ function fileToBase64(file) {
 }
 
 // Upload: salva arquivo como base64 no Realtime Database
+// Upload com chunking — divide arquivo em pedaços de 200KB
 async function fbUploadFile(path, file) {
-  ghStatus('⏳ Convertendo arquivo...', 'info');
+  ghStatus('⏳ Preparando arquivo...', 'info');
   var b64 = await fileToBase64(file);
   var key = path.replace(/[.\/]/g, '_');
-  ghStatus('⏳ Enviando para Firebase...', 'info');
-  await _fbDB.ref('portal/files/' + key).set({
+  var CHUNK = 200000; // 200KB por chunk
+  var total = Math.ceil(b64.length / CHUNK);
+  // Salvar metadados do arquivo
+  await _fbDB.ref('portal/files/' + key + '/meta').set({
     name: file.name,
     path: path,
-    data: b64,
     size: file.size,
+    chunks: total,
     updated: new Date().toLocaleString('pt-BR'),
     ts: Date.now()
   });
-  ghStatus('✅ Arquivo salvo!', 'ok');
+  // Salvar cada chunk separadamente
+  for (var i = 0; i < total; i++) {
+    var chunk = b64.slice(i * CHUNK, (i + 1) * CHUNK);
+    ghStatus('⏳ Enviando ' + (i+1) + '/' + total + '...', 'info');
+    await _fbDB.ref('portal/files/' + key + '/chunks/' + i).set(chunk);
+  }
+  ghStatus('✅ Arquivo salvo com sucesso!', 'ok');
 }
 
-// Download: lê base64 do Realtime Database e retorna File
+// Download com chunking — remonta os pedaços
 async function fbFetchXlsx(path) {
   var key = path.replace(/[.\/]/g, '_');
-  var snap = await _fbDB.ref('portal/files/' + key).get();
-  if (!snap.exists()) throw new Error('Arquivo não encontrado: ' + path);
-  var d = snap.val();
-  var res = await fetch(d.data);
+  var metaSnap = await _fbDB.ref('portal/files/' + key + '/meta').get();
+  if (!metaSnap.exists()) throw new Error('Arquivo não encontrado: ' + path);
+  var meta = metaSnap.val();
+  // Buscar todos os chunks
+  var chunksSnap = await _fbDB.ref('portal/files/' + key + '/chunks').get();
+  if (!chunksSnap.exists()) throw new Error('Chunks não encontrados: ' + path);
+  // Remontar base64
+  var b64 = '';
+  var chunksObj = chunksSnap.val();
+  for (var i = 0; i < meta.chunks; i++) {
+    if (chunksObj[i] === undefined) throw new Error('Chunk ' + i + ' ausente');
+    b64 += chunksObj[i];
+  }
+  // Converter base64 → blob → File
+  var res = await fetch(b64);
   var blob = await res.blob();
-  return new File([blob], d.name, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  return new File([blob], meta.name, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 
 // Salva metadados no Realtime Database
@@ -3962,7 +3982,7 @@ async function fbReadMeta() {
 // Verifica se arquivo existe no Database
 async function fbFileExists(path) {
   var key = path.replace(/[.\/]/g, '_');
-  var snap = await _fbDB.ref('portal/files/' + key).get();
+  var snap = await _fbDB.ref('portal/files/' + key + '/meta').get();
   return snap.exists();
 }
 
@@ -3972,9 +3992,9 @@ async function fbListHistFiles() {
   if (!snap.exists()) return [];
   var files = [];
   snap.forEach(function(child) {
-    var d = child.val();
-    if (d.path && /prod_\d{4}-\d{2}\.xlsx/.test(d.path)) {
-      files.push(d);
+    var meta = child.val().meta;
+    if (meta && meta.path && /prod_\d{4}-\d{2}\.xlsx/.test(meta.path)) {
+      files.push(meta);
     }
   });
   return files.sort(function(a,b){ return b.path.localeCompare(a.path); });
