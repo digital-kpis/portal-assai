@@ -3386,36 +3386,56 @@ async function processFiles(skipAuthCheck){
   const btn=document.getElementById('btnUpdate');btn.disabled=true;
   showSt('⏳ Lendo arquivos...','loading');
   try{
-    const pf=window.prodFile||prodFile,rf=window.ruptFile||ruptFile;const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
-    showSt('⏳ Cruzando col C × col Q...','loading');
-    const keyToSep={};
+    const pf=window.prodFile||prodFile,rf=window.ruptFile||ruptFile;
+    const[pRows,rRows]=await Promise.all([readXlsx(pf),readXlsx(rf)]);
+    showSt('⏳ Cruzando pedidos...','loading');
+
+    // ── PRODU: monta mapa numPedido → {sep, date} ──
+    // Col A (idx 0) = separador | Col C (idx 2) = número do pedido | Col I (idx 8) = data
+    const keyToSep={}, keyToDate={};
     for(const r of pRows){
+      const vals=Object.values(r);
       const n=norm(r);
-      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
-      const sep=(n['separador']||'').toString().trim();
-      if(numPed&&sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
+      // Número do pedido — col C (idx 2) com fallback por nome
+      const numPedRaw=(n['número do pedido']||n['numero do pedido']||n['num pedido']||vals[2]||'').toString().trim();
+      const numPed=numPedRaw.replace(/\.0$/,'').replace(/^0+/,'')||'';
+      if(!numPed||numPed==='0')continue;
+      // Separador — col A (idx 0) com fallback por nome
+      const sep=(n['separador']||n['operador']||n['funcionário']||n['funcionario']||vals[0]||'').toString().trim();
+      if(sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
+      // Data — col I (idx 8) com fallback por nome
+      const rawDate=n['data (referente ao pedido)']||n['data referente ao pedido']||n['data']||vals[8]||'';
+      if(rawDate)keyToDate[numPed]=parseDate(rawDate);
     }
-    // Build a date lookup: pedido number → date string
-    const keyToDate={};
-    for(const r of pRows){
-      const n=norm(r);
-      const numPed=(n['número do pedido']||n['numero do pedido']||Object.values(r)[2]||'').toString().trim().replace(/^0+/,'')||'0';
-      const rawDate=n['data (referente ao pedido)']||n['data']||'';
-      if(numPed&&rawDate)keyToDate[numPed]=parseDate(rawDate);
-    }
-    // Popula DETAIL_ROWS — única fonte de verdade
+
+    // ── RUPTURA: usa colunas confirmadas pelo usuário ──
+    // Col F (idx 5)  = dt_pedido  → DATA
+    // Col G (idx 6)  = produto    → PRODUTO
+    // Col K (idx 10) = qtd_indisponivel → QUANTIDADE
+    // Col Q (idx 16) = short_id   → CHAVE DE CRUZAMENTO
     DETAIL_ROWS.length=0;
+    var matched=0, unmatched=0;
     for(const r of rRows){
+      const vals=Object.values(r);
       const n=norm(r);
-      const sid=(n['short_id']||Object.values(r)[16]||'').toString().trim().replace(/^0+/,'')||'0';
-      const produto=(n['produto']||'').toString().trim();
+      // Produto — col G (idx 6)
+      const produto=(n['produto']||n['descrição']||n['descricao']||vals[6]||'').toString().trim();
       if(!produto)continue;
-      const qtd=parseFloat(n['qtd_indisponivel']||0)||0;
-      const rawDate=n['dt_pedido']||Object.values(r)[5]||'';
-      const dateStr=parseDate(rawDate)||keyToDate[sid]||null;
+      // Quantidade — col K (idx 10)
+      const qtd=parseFloat(n['qtd_indisponivel']||n['qtd indisponivel']||vals[10]||0)||0;
+      // Data — col F (idx 5)
+      const rawDate=n['dt_pedido']||n['data']||vals[5]||'';
+      const dateStr=parseDate(rawDate)||null;
+      // Chave cruzamento — col Q (idx 16), remove zeros à esquerda e ".0"
+      const sidRaw=(n['short_id']||vals[16]||'').toString().trim();
+      const sid=sidRaw.replace(/\.0$/,'').replace(/^0+/,'')||'0';
       const sep=keyToSep[sid]||'';
       if(/^helppi/i.test(sep))continue;
-      DETAIL_ROWS.push({date:dateStr,sep,produto,qtd,sid});
+      if(sep)matched++;else unmatched++;
+      DETAIL_ROWS.push({date:dateStr||keyToDate[sid]||null,sep,produto,qtd,sid});
+    }
+    if(unmatched>0&&matched===0){
+      showSt('⚠️ Cruzamento falhou: verifique se os arquivos são do mesmo período','warn');
     }
     // Período: range completo dos dados sem travar filtro
     const allDates=DETAIL_ROWS.map(r=>r.date).filter(Boolean).sort();
