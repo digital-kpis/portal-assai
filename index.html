@@ -1571,7 +1571,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
   <div class="es-steps">
     <div class="es-step"><span class="es-num">1</span><span>Acesse a aba <strong style="color:var(--txt)">⚙️ Administrador</strong> e faça login.</span></div>
     <div class="es-step"><span class="es-num">2</span><span>Na seção <strong style="color:var(--txt)">❌ Publicar dados — Cancelamentos</strong>, selecione os dois arquivos XLSX.</span></div>
-    <div class="es-step"><span class="es-num">3</span><span>Clique em <strong style="color:var(--txt)">☁️ Publicar no GitHub</strong>. Os dados aparecerão aqui para todos automaticamente.</span></div>
+    <div class="es-step"><span class="es-num">3</span><span>Clique em <strong style="color:var(--txt)">☁️ Publicar no Firebase</strong>. Os dados aparecerão aqui para todos automaticamente.</span></div>
   </div>
 </div>
 
@@ -1767,7 +1767,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
 
 </div><!-- /#cancelDashContent -->
 
-<footer id="footerSrc">Fonte: PRODU_1_22.xlsx × RUPTURA_1_22.xlsx · Cruzamento: número do pedido (col C) × short_id (col Q)</footer>
+<footer id="footerSrc">Fonte: Firebase Database · Portal Digital Maracanã</footer>
 
     </div>
   </div>
@@ -1777,7 +1777,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
     <div class="adm-sec">
       <div class="adm-sec-title">Painel Administrativo</div>
       <div class="adm-info-box">
-        <strong>Como funciona:</strong> Os arquivos XLSX são salvos diretamente no repositório GitHub. Assim, <strong>todos os usuários</strong> veem os dados atualizados ao abrir o link — em qualquer dispositivo. Configure o Token GitHub abaixo antes do primeiro uso.
+        <strong>Como funciona:</strong> Os arquivos XLSX são salvos no Firebase Realtime Database. Assim, <strong>todos os usuários</strong> veem os dados atualizados ao abrir o link — em qualquer dispositivo, sem configuração adicional.
       </div>
     </div>
 
@@ -1805,7 +1805,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
         </div>
       </div>
       <div class="adm-row">
-        <button class="save-btn" id="btn-prod" disabled onclick="publishProdData()">☁️ Publicar no GitHub</button>
+        <button class="save-btn" id="btn-prod" disabled onclick="publishProdData()">☁️ Publicar no Firebase</button>
         <span class="sst" id="st-prod"></span>
       </div>
     </div>
@@ -1816,7 +1816,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
       <p style="font-size:12px;color:#8892aa;margin-bottom:14px">
         Salva uma cópia do arquivo de produtividade com o nome
         <code style="color:#a78bfa;background:rgba(167,139,250,.1);padding:1px 6px;border-radius:4px">prod_YYYY-MM.xlsx</code>
-        no GitHub. Ela aparecerá automaticamente na aba <strong style="color:#dde3f0">📅 Histórico</strong> para todos os usuários.
+        no Firebase. Ela aparecerá automaticamente na aba <strong style="color:#dde3f0">📅 Histórico</strong> para todos os usuários.
       </p>
 
       <!-- toggle: publicar junto com produtividade -->
@@ -1838,10 +1838,10 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
         <div style="font-size:12px;color:#8892aa;line-height:1.7">
           O arquivo será salvo como
           <code id="hist-filename-preview" style="color:#a78bfa;background:rgba(167,139,250,.1);padding:1px 7px;border-radius:4px">prod_YYYY-MM.xlsx</code>
-          na pasta <code style="color:#5a6480">data/</code> do GitHub.
+          no Firebase Database.
         </div>
         <div class="hist-conflict-warn" id="hist-conflict-warn">
-          ⚠️ Já existe um arquivo <strong id="hist-conflict-name"></strong> no repositório.
+          ⚠️ Já existe um arquivo <strong id="hist-conflict-name"></strong> no Firebase.
           Ao confirmar, ele será <strong>sobrescrito</strong> com os dados atuais.
         </div>
       </div>
@@ -1893,7 +1893,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
         </div>
       </div>
       <div class="adm-row">
-        <button class="save-btn" id="btn-cancel" disabled onclick="publishCancelData()">☁️ Publicar no GitHub</button>
+        <button class="save-btn" id="btn-cancel" disabled onclick="publishCancelData()">☁️ Publicar no Firebase</button>
         <span class="sst" id="st-cancel"></span>
       </div>
     </div>
@@ -1901,10 +1901,10 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
     <!-- ⑤ ZERAR DADOS -->
     <div class="adm-sec">
       <div class="adm-sec-title">🗑️ Zerar Todos os Dados</div>
-      <p style="font-size:12px;color:#8892aa;margin-bottom:16px">Remove todos os dados publicados do GitHub e limpa o cache local. Os dashboards voltarão ao estado inicial para todos os usuários.</p>
+      <p style="font-size:12px;color:#8892aa;margin-bottom:16px">Remove todos os dados publicados do Firebase e limpa o cache local. Os dashboards voltarão ao estado inicial para todos os usuários.</p>
       <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:16px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
         <span style="font-size:20px;flex-shrink:0">⚠️</span>
-        <span style="font-size:12px;color:#f87171;line-height:1.6">Esta ação <strong>não pode ser desfeita</strong>. Os arquivos serão removidos do repositório GitHub e todos os usuários verão os dashboards sem dados até a próxima publicação.</span>
+        <span style="font-size:12px;color:#f87171;line-height:1.6">Esta ação <strong>não pode ser desfeita</strong>. Os arquivos serão removidos do Firebase e todos os usuários verão os dashboards sem dados até a próxima publicação.</span>
       </div>
       <button onclick="confirmReset()" style="
         background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);
@@ -1979,7 +1979,7 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
   <div class="p-panel" id="panel-historico">
     <div style="background:#0e1118;border:1px solid #1f2738;border-radius:18px;padding:28px 32px">
       <div style="font-size:22px;font-weight:900;margin-bottom:6px;color:#dde3f0">📅 Histórico de Meses</div>
-      <div style="font-size:13px;color:#5a6480">Arquivos publicados no repositório GitHub. Clique em um mês para carregar os dados no Dashboard de Produtividade.</div>
+      <div style="font-size:13px;color:#5a6480">Arquivos publicados no Firebase. Clique em um mês para carregar os dados no Dashboard de Produtividade.</div>
     </div>
     <div id="hist-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
       <div style="color:#5a6480;font-size:13px;padding:20px">Carregando histórico...</div>
