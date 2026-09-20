@@ -1950,6 +1950,16 @@ body.light-mode #pdf-btn{background:#f0f2f7;border-color:#d8dce8;color:#5a6480}
       </div>
     </div>
 
+    <!-- ⑦ HISTÓRICO DE PUBLICAÇÕES -->
+    <div class="adm-sec">
+      <div class="adm-sec-title">📋 Histórico de Publicações</div>
+      <p style="font-size:12px;color:#8892aa;margin-bottom:12px">Registro de todos os arquivos publicados no Firebase.</p>
+      <button onclick="loadHistoricoPublicacoes()" style="background:#1a2030;border:1px solid #2a3448;color:#8892aa;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;margin-bottom:12px">🔄 Atualizar histórico</button>
+      <div id="historico-publicacoes" style="font-family:'JetBrains Mono',monospace;font-size:11px;max-height:220px;overflow-y:auto;background:#0a0c12;border-radius:8px;padding:10px;color:#5a6480">
+        Clique em "Atualizar histórico" para ver os lançamentos.
+      </div>
+    </div>
+
     <!-- ⑧ NOTIFICAÇÕES -->
     <div class="adm-sec">
       <div class="adm-sec-title">🔔 Notificações (E-mail / WhatsApp)</div>
@@ -3972,25 +3982,42 @@ async function fbFetchXlsx(path) {
   var metaSnap = await _fbDB.ref('portal/files/' + key + '/meta').get();
   if (!metaSnap.exists()) throw new Error('Arquivo não encontrado: ' + path);
   var meta = metaSnap.val();
-  // Buscar todos os chunks
   var chunksSnap = await _fbDB.ref('portal/files/' + key + '/chunks').get();
   if (!chunksSnap.exists()) throw new Error('Chunks não encontrados: ' + path);
-  // Remontar base64
-  var b64 = '';
+  // Remontar base64 completo
+  var b64full = '';
   var chunksObj = chunksSnap.val();
   for (var i = 0; i < meta.chunks; i++) {
     if (chunksObj[i] === undefined) throw new Error('Chunk ' + i + ' ausente');
-    b64 += chunksObj[i];
+    b64full += chunksObj[i];
   }
-  // Converter base64 → blob → File
-  var res = await fetch(b64);
-  var blob = await res.blob();
+  // Extrair só a parte base64 (remover "data:...;base64,")
+  var b64data = b64full.indexOf(',') >= 0 ? b64full.split(',')[1] : b64full;
+  // Converter base64 → Uint8Array → Blob → File (sem fetch, funciona em todos browsers)
+  var binary = atob(b64data);
+  var bytes = new Uint8Array(binary.length);
+  for (var j = 0; j < binary.length; j++) bytes[j] = binary.charCodeAt(j);
+  var blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   return new File([blob], meta.name, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 
-// Salva metadados no Realtime Database
+// Salva metadados no Realtime Database + registra no histórico
 async function fbSaveMeta(key, meta) {
-  await _fbDB.ref('portal/meta/' + key).set(Object.assign({}, meta, {ts: Date.now()}));
+  var now = Date.now();
+  var data = Object.assign({}, meta, {ts: now});
+  await _fbDB.ref('portal/meta/' + key).set(data);
+  // Registra no histórico de lançamentos
+  var logEntry = Object.assign({}, data, {tipo: key, data: new Date(now).toLocaleString('pt-BR')});
+  await _fbDB.ref('portal/historico').push(logEntry);
+}
+
+// Lê histórico de lançamentos
+async function fbReadHistorico() {
+  var snap = await _fbDB.ref('portal/historico').orderByChild('ts').limitToLast(50).get();
+  if (!snap.exists()) return [];
+  var items = [];
+  snap.forEach(function(c) { items.unshift(c.val()); });
+  return items;
 }
 
 // Lê metadados do Realtime Database
@@ -4213,6 +4240,29 @@ async function publishCancelData() {
   } finally { loadEnd(); btn.disabled = false; }
 }
 
+async function loadHistoricoPublicacoes() {
+  var el = document.getElementById('historico-publicacoes');
+  if (!el) return;
+  el.textContent = '⏳ Carregando...';
+  try {
+    var items = await fbReadHistorico();
+    if (!items.length) { el.textContent = 'Nenhum lançamento registrado ainda.'; return; }
+    el.innerHTML = items.map(function(item) {
+      var tipo = item.tipo === 'prod' ? '📊 Produtividade' : '❌ Cancelamentos';
+      var nome = item.tipo === 'prod' ? (item.name||'prod.xlsx') : ((item.name1||'')+' + '+(item.name2||''));
+      var cor = item.tipo === 'prod' ? '#38f0d4' : '#ef4444';
+      return '<div style="padding:4px 0;border-bottom:1px solid #1a2030;display:flex;gap:8px;align-items:center">' +
+        '<span style="color:'+cor+';min-width:140px">'+tipo+'</span>' +
+        '<span style="color:#8892aa;min-width:140px">'+item.data+'</span>' +
+        '<span style="color:#5a6480">'+nome+'</span>' +
+        '</div>';
+    }).join('');
+  } catch(e) {
+    el.textContent = '❌ Erro: ' + e.message;
+  }
+}
+
+
 // ── AUTO-CARREGAR dados do Firebase ao abrir o site ──────────
 function comTimeout(promise, ms, mensagem) {
   return Promise.race([
@@ -4220,6 +4270,27 @@ function comTimeout(promise, ms, mensagem) {
     new Promise((_, reject) => setTimeout(() => reject(new Error(mensagem || 'tempo esgotado')), ms))
   ]);
 }
+
+// Listener em tempo real — recarrega automaticamente quando ADM publica dados
+var _fbMetaListenerOn = false;
+function startFbListener() {
+  if (_fbMetaListenerOn) return;
+  _fbMetaListenerOn = true;
+  _fbDB.ref('portal/meta').on('value', function(snap) {
+    if (!snap.exists()) return;
+    var meta = snap.val();
+    // Atualiza o banner de última atualização
+    updateBanner(meta);
+    // Se mudou desde o último carregamento, recarrega os dados
+    var newTs = Math.max(meta.prod ? meta.prod.ts||0 : 0, meta.cancel ? meta.cancel.ts||0 : 0);
+    if (newTs > (_lastLoadTs||0) && (_lastLoadTs||0) > 0) {
+      addLog('🔄 Novos dados detectados — recarregando...', 'info');
+      _lastLoadTs = newTs;
+      autoLoad();
+    }
+  });
+}
+var _lastLoadTs = 0;
 
 async function autoLoad() {
   loadStart('Sincronizando dados…', 'Verificando Firebase');
@@ -4275,6 +4346,8 @@ async function autoLoad() {
       finally { loadEnd(); }
     }
     await updateBanner(meta);
+    _lastLoadTs = Math.max(meta.prod ? meta.prod.ts||0 : 0, meta.cancel ? meta.cancel.ts||0 : 0);
+    startFbListener();
   } finally { loadEnd(); }
 }
 
