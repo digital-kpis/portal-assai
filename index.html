@@ -4022,8 +4022,13 @@ async function fbReadHistorico() {
 
 // Lê metadados do Realtime Database
 async function fbReadMeta() {
-  var snap = await _fbDB.ref('portal/meta').get();
-  return snap.exists() ? snap.val() : {};
+  try {
+    var snap = await _fbDB.ref('portal/meta').get();
+    return snap.exists() ? snap.val() : {};
+  } catch(e) {
+    console.error('fbReadMeta erro:', e);
+    throw new Error('Falha ao ler banco de dados: ' + e.message + '. Verifique as regras do Firebase.');
+  }
 }
 
 // Verifica se arquivo existe no Database
@@ -4300,7 +4305,8 @@ async function autoLoad() {
   } catch(e) {
     loadEnd();
     addLog('❌ Falha ao conectar no Firebase: ' + e.message, 'err');
-    showToast('Não foi possível carregar os dados salvos (' + e.message + '). Verifique sua conexão e recarregue a página.', 'err', {title:'Erro ao sincronizar'});
+    showToast('Falha Firebase: ' + e.message, 'err', {title:'Erro ao sincronizar'});
+    console.error('autoLoad falhou:', e);
     var none0 = document.getElementById('update-none');
     if(none0) none0.textContent = '⚠️ Erro ao verificar dados salvos: ' + e.message;
     return;
@@ -4415,11 +4421,18 @@ function addLog(msg, type) {
 lockUploads();
 switchTab('home');
 renderLastUpdate();
-loadGhForm();
-autoLoad().catch(function(e){
-  console.log('autoLoad:', e);
-  try{ showToast('Erro inesperado ao carregar dados: ' + e.message, 'err', {title:'Erro'}); }catch(_){}
-});
+// Aguarda Firebase inicializar completamente antes de carregar dados
+function runAutoLoad() {
+  if (typeof _fbDB === 'undefined' || !_fbDB) {
+    setTimeout(runAutoLoad, 200);
+    return;
+  }
+  autoLoad().catch(function(e){
+    console.log('autoLoad erro:', e);
+    try{ showToast('Erro ao carregar dados: ' + e.message, 'err', {title:'Erro'}); }catch(_){}
+  });
+}
+setTimeout(runAutoLoad, 500);
 
 // ════════════════════════════════════════════════════
 // FASE 1 — NOVAS FUNCIONALIDADES
