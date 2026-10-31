@@ -2190,6 +2190,7 @@ function parseRows(rows) {
   return rows.map(r=>{
     const sep=String(r[C.sep]||'').trim(); if(!sep) return null;
     if(/^helppi/i.test(sep)) return null; // ignorar operadores sistema Helppi
+    if(/sem separador|n[aã]o identificad/i.test(sep)) return null; // ocultar separador não identificado
     const ini   = C.ini   ? parseDt(r[C.ini])   : null;
     const iniop = C.iniop ? parseDt(r[C.iniop]) : ini;
     const conc  = C.conc  ? parseDt(r[C.conc])  : null;
@@ -2329,12 +2330,12 @@ function computeOperators(data){
     const prod=tSep>0?iMed/tSep:null;
     const pedMes=rows.filter(r=>r.data&&r.data.startsWith(CURRENT_MONTH)).length;
     const dMes=o.diasMes.size||1;
-    return{sep:o.rows[0].sep,total_pedidos:n,dias_ativos:o.dias.size,media_diaria:+(pedMes/dMes).toFixed(1),
+    return{sep:o.rows[0].sep,total_pedidos:n,dias_ativos:o.dias.size,media_diaria:+(n/(o.dias.size||1)).toFixed(1),
       tempo_sep:+tSep.toFixed(1),tempo_min:ts.length?Math.min(...ts):0,tempo_max:ts.length?Math.max(...ts):0,
       tempo_conc:+tConc.toFixed(1),itens_med:+iMed.toFixed(1),pct_prazo:+pct.toFixed(1),
       atrasados:atr,prod:prod?+prod.toFixed(3):null,pedidos_mes:pedMes,dias_mes:dMes};
   });
-  const tempFiltered = tempResults.filter(o=>!/^helppi/i.test(o.sep));
+  const tempFiltered = tempResults.filter(o=>!/^helppi/i.test(o.sep) && !/sem separador|n[aã]o identificad/i.test(o.sep));
   const _prods=tempFiltered.map(o=>o.prod).filter(x=>x!==null).sort((a,b)=>a-b);
   if(_prods.length>=2) BENCH=_prods[Math.floor(_prods.length*0.75)]||1.4;
   return tempFiltered.map(o=>{
@@ -3412,7 +3413,7 @@ async function processFiles(skipAuthCheck){
       if(!numPed||numPed==='0')continue;
       // Separador — col A (idx 0) com fallback por nome
       const sep=(n['separador']||n['operador']||n['funcionário']||n['funcionario']||vals[0]||'').toString().trim();
-      if(sep&&!/^helppi/i.test(sep))keyToSep[numPed]=sep;
+      if(sep&&!/^helppi/i.test(sep)&&!/sem separador|n[aã]o identificad/i.test(sep))keyToSep[numPed]=sep;
       // Data — col I (idx 8) com fallback por nome
       const rawDate=n['data (referente ao pedido)']||n['data referente ao pedido']||n['data']||vals[8]||'';
       if(rawDate)keyToDate[numPed]=parseDate(rawDate);
